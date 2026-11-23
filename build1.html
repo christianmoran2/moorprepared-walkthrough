@@ -180,6 +180,10 @@
           <span class="text-slate-400">Transom to Main Seawall:</span>
           <span id="hudSternDist" class="font-bold text-white">34.2 ft</span>
         </div>
+        <div id="hudContactStatusBox" class="mt-1.5 px-2 py-1 rounded bg-emerald-950/50 border border-emerald-500/30 text-[10px] mono text-emerald-300 flex items-center justify-between">
+          <span id="hudContactLabel">✓ Hull Clear (No Contact)</span>
+          <span id="hudContactForce" class="font-bold">0 lbf</span>
+        </div>
       </div>
 
       <!-- Live Wind Shear & Bow/Stern Split Force Monitor (CB-01) -->
@@ -1650,47 +1654,26 @@
       simState.y_m += vy_world * dt;
       simState.psi_rad += simState.r_radps * dt;
 
-      // Visual Roll & Pitch Spring
-      const targetRoll = Math.max(-0.14, Math.min(0.14, (Fy_thruster + Fy_aero * 0.6 - Fy_prop * 0.4) / 28000));
-      simState.roll_rad += (targetRoll - simState.roll_rad) * Math.min(1, dt * 3.5);
-      const targetPitch = Math.max(-0.06, Math.min(0.06, (Fx_prop * 0.5) / 140000));
-      simState.pitch_rad += (targetPitch - simState.pitch_rad) * Math.min(1, dt * 4.0);
+      // Visual Roll & Pitch Spring (with Dynamic Roll Oscillator for Piling Impact Kick!)
+      const targetRoll = Math.max(-0.18, Math.min(0.18, (Fy_thruster + Fy_aero * 0.6 - Fy_prop * 0.4) / 28000));
+      const rollAccel = (targetRoll - simState.roll_rad) * 18.0 - simState.roll_rate * 4.2;
+      simState.roll_rate += rollAccel * dt;
+      simState.roll_rad += simState.roll_rate * dt;
 
-      // 9. Piling & Seawall Collision / Clearance Geometry
-      const halfSlipM = (pkg.slip_width_ft * 0.3048) / 2;
-      const halfBeamM = pkg.beam_m / 2;
-      const hullHalfLen = pkg.loa_m / 2;
+      const targetPitch = Math.max(-0.08, Math.min(0.08, (Fx_prop * 0.5) / 140000));
+      const pitchAccel = (targetPitch - simState.pitch_rad) * 20.0 - simState.pitch_rate * 4.8;
+      simState.pitch_rate += pitchAccel * dt;
+      simState.pitch_rad += simState.pitch_rate * dt;
 
-      // Compute transverse hull envelope at the outer pilings / inside the slip
-      const sinAbs = Math.abs(Math.sin(simState.psi_rad));
-      const effectiveHalfWidthM = halfBeamM * Math.abs(Math.cos(simState.psi_rad)) + hullHalfLen * 0.35 * sinAbs;
+      // 9. True 2D Rigid-Body Hull Polygon vs. Pilings, Finger Piers, Neighbor 52' Yacht & Seawall Collision Solver
+      resolveMarinaRigidBodyCollisions(pkg, dt);
 
-      // Port piling is at x = -halfSlipM (when facing North 000° out of slip, Port side of boat is West -X, Starboard side is East +X)
-      const portClearM = (simState.x_m - effectiveHalfWidthM) - (-halfSlipM);
-      const stbdClearM = halfSlipM - (simState.x_m + effectiveHalfWidthM);
-
-      simState.port_clearance_in = portClearM * 39.3701;
-      simState.stbd_clearance_in = stbdClearM * 39.3701;
-
-      const sternWorldY_edge = simState.y_m - cosPsi * hullHalfLen;
-      simState.stern_seawall_ft = Math.max(0, sternWorldY_edge * 3.28084);
-
-      // Gentle elastic fender bounce if hull contacts outer pilings or main seawall
-      if (sternWorldY_edge < SLIP_LENGTH_M + 0.5 && sternWorldY_edge > -1.0) {
-        if (simState.port_clearance_in < 0) {
-          simState.x_m += (-simState.port_clearance_in / 39.3701) * 0.5;
-          simState.v_mps = Math.abs(simState.v_mps) * 0.35;
-          simState.r_radps *= 0.5;
-        }
-        if (simState.stbd_clearance_in < 0) {
-          simState.x_m -= (-simState.stbd_clearance_in / 39.3701) * 0.5;
-          simState.v_mps = -Math.abs(simState.v_mps) * 0.35;
-          simState.r_radps *= 0.5;
-        }
+      // Decay active 3D impact shockwave markers & camera shudder
+      if (simState.impact_timer_s > 0) {
+        simState.impact_timer_s = Math.max(0, simState.impact_timer_s - dt);
       }
-      if (sternWorldY_edge < 0.3) {
-        simState.y_m += (0.3 - sternWorldY_edge);
-        simState.u_mps = Math.max(0, simState.u_mps);
+      if (simState.cam_shake_m > 0) {
+        simState.cam_shake_m = Math.max(0, simState.cam_shake_m - dt * 0.65);
       }
 
       // 10. Record into 50 Hz Ring Buffer & Ghost Track
@@ -1701,6 +1684,344 @@
         ghostTrack.push({ t: simState.time_s, x: simState.x_m, y: simState.y_m, psi: simState.psi_rad });
         if (ghostTrack.length > 240) ghostTrack.shift();
       }
+    }
+
+    // =========================================================================
+    // 2D RIGID-BODY POLYGON COLLISION & FULCRUM PIVOT BOUNCE ENGINE
+    // =========================================================================
+    simState.impact_timer_s = 0;
+    simState.impact_world_x = 0;
+    simState.impact_world_y = 0;
+    simState.impact_nx = 0;
+    simState.impact_ny = 0;
+    simState.impact_force_lbf = 0;
+    simState.impact_speed_kts = 0;
+    simState.impact_yaw_kick_degps = 0;
+    simState.impact_label = "";
+    simState.cam_shake_m = 0;
+    simState.struck_piling_id = "";
+
+    function getHullPolygon2D(pkg) {
+      const hL = pkg.loa_m * 0.5;
+      const hB = pkg.beam_m * 0.5;
+      const aftExt = pkg.propulsion.type === "twin_steerable_outboard" ? 0.65 : 0.25;
+      // 12-vertex counter-clockwise hull perimeter in vessel local frame (x_fwd, y_stbd)
+      const localPts = [
+        { lx: -hL - aftExt, ly: -hB * 0.35, zone: "Port Transom/Outboard" },
+        { lx: -hL,          ly: -hB * 0.88, zone: "Port Transom Corner" },
+        { lx: -hL * 0.55,   ly: -hB * 0.96, zone: "Port Aft Quarter" },
+        { lx: -hL * 0.10,   ly: -hB,        zone: "Port Midship Rub-Rail" },
+        { lx:  hL * 0.35,   ly: -hB * 0.88, zone: "Port Forward Quarter" },
+        { lx:  hL * 0.72,   ly: -hB * 0.54, zone: "Port Bow Flare" },
+        { lx:  hL,          ly:  0.0,       zone: "Bow Stem" },
+        { lx:  hL * 0.72,   ly:  hB * 0.54, zone: "Stbd Bow Flare" },
+        { lx:  hL * 0.35,   ly:  hB * 0.88, zone: "Stbd Forward Quarter" },
+        { lx: -hL * 0.10,   ly:  hB,        zone: "Stbd Midship Rub-Rail" },
+        { lx: -hL * 0.55,   ly:  hB * 0.96, zone: "Stbd Aft Quarter" },
+        { lx: -hL,          ly:  hB * 0.88, zone: "Stbd Transom Corner" },
+        { lx: -hL - aftExt, ly:  hB * 0.35, zone: "Stbd Transom/Outboard" }
+      ];
+      const cosP = Math.cos(simState.psi_rad);
+      const sinP = Math.sin(simState.psi_rad);
+      return localPts.map(p => ({
+        wx: simState.x_m + p.lx * sinP + p.ly * cosP,
+        wy: simState.y_m + p.lx * cosP - p.ly * sinP,
+        lx: p.lx,
+        ly: p.ly,
+        zone: p.zone
+      }));
+    }
+
+    function closestPointOnSegment2D(px, py, ax, ay, bx, by) {
+      const abx = bx - ax, aby = by - ay;
+      const len2 = abx * abx + aby * aby;
+      let t = len2 > 1e-8 ? ((px - ax) * abx + (py - ay) * aby) / len2 : 0;
+      t = Math.max(0, Math.min(1, t));
+      return { qx: ax + t * abx, qy: ay + t * aby, t };
+    }
+
+    function isPointInsidePolygon2D(px, py, poly) {
+      let inside = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const xi = poly[i].wx, yi = poly[i].wy;
+        const xj = poly[j].wx, yj = poly[j].wy;
+        const intersect = ((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / ((yj - yi) || 1e-9) + xi);
+        if (intersect) inside = !inside;
+      }
+      return inside;
+    }
+
+    function applyRigidBodyCollisionImpulse(pkg, contactWx, contactWy, nx, ny, penetrationM, obstacleLabel, hullZone, obsId) {
+      // 1. Strict Position Depenetration (Cannot pass through physical object!)
+      const pushDist = penetrationM + 0.014;
+      simState.x_m += nx * pushDist;
+      simState.y_m += ny * pushDist;
+
+      // 2. Lever arm from vessel CG to contact point in world frame
+      const rWx = contactWx - simState.x_m;
+      const rWy = contactWy - simState.y_m;
+
+      const cosP = Math.cos(simState.psi_rad);
+      const sinP = Math.sin(simState.psi_rad);
+
+      // Current world velocity of vessel CG
+      let vxW = simState.u_mps * sinP + simState.v_mps * cosP;
+      let vyW = simState.u_mps * cosP - simState.v_mps * sinP;
+
+      // Exact velocity of the contact point on the hull (translation + yaw rotation)
+      // Since X_w = x_m + lx*sinP + ly*cosP and Y_w = y_m + lx*cosP - ly*sinP:
+      // dX_w/dt = vxW + r_radps * rWy; dY_w/dt = vyW - r_radps * rWx
+      const vpx = vxW + simState.r_radps * rWy;
+      const vpy = vyW - simState.r_radps * rWx;
+
+      // Relative velocity along outward collision normal (negative = moving into obstacle)
+      const vn = vpx * nx + vpy * ny;
+
+      const m = pkg.mass_and_inertia;
+      const avgMass = 0.5 * (m.effective_mass_surge_kg + m.effective_mass_sway_kg);
+      const Izz = m.effective_yaw_inertia_kg_m2;
+
+      // Rotational lever cross product: tau_z = rWy * Jx - rWx * Jy (matches +r_radps clockwise)
+      const cn = rWy * nx - rWx * ny;
+      const invEffMass = (1.0 / avgMass) + (cn * cn) / Izz;
+
+      // Elastic timber piling + rub-rail restitution (e = 0.54) with a minimum separation rebound velocity (0.22 m/s = 0.43 kt)
+      // so the hull visibly bounces and pivots off the piling even under continuous wind pressure!
+      const restitution = 0.54;
+      const approachSpeedMps = Math.max(0, -vn);
+      const targetReboundSpeed = Math.max(0.22, approachSpeedMps * restitution);
+      const deltaVn = targetReboundSpeed - vn; // Always > 0 when vn <= 0.15
+
+      if (vn < 0.16) {
+        const Jn = deltaVn / invEffMass;
+
+        // Tangential Rub-Rail Friction Impulse (grabs the hull slightly and pivots it around the piling!)
+        const tx = -ny, ty = nx;
+        const vt = vpx * tx + vpy * ty;
+        const ct = rWy * tx - rWx * ty;
+        const invEffTan = (1.0 / avgMass) + (ct * ct) / Izz;
+        const mu = 0.36; // Timber piling / dock rub-rail friction coefficient
+        const maxJt = mu * Jn;
+        const Jt = Math.max(-maxJt, Math.min(maxJt, -vt / invEffTan));
+
+        const Jx = Jn * nx + Jt * tx;
+        const Jy = Jn * ny + Jt * ty;
+
+        // Update linear velocity in world frame and project back to body (u_mps, v_mps)
+        vxW += Jx / avgMass;
+        vyW += Jy / avgMass;
+        simState.u_mps = vxW * sinP + vyW * cosP;
+        simState.v_mps = vxW * cosP - vyW * sinP;
+
+        // Update angular yaw rate (Fulcrum Pivot Effect around the piling!)
+        const prevR = simState.r_radps;
+        const deltaR = (rWy * Jx - rWx * Jy) / Izz;
+        simState.r_radps += deltaR;
+
+        // Visual 3D Hull Roll Kick away from the struck gunwale
+        const localSideSign = (nx * cosP - ny * sinP) >= 0 ? -1 : 1;
+        simState.roll_rate += localSideSign * Math.min(0.42, 0.14 + approachSpeedMps * 0.35);
+
+        // Compute Peak Impact Force (lbf) over ~0.08s rub-rail compression window
+        const impactForceN = Jn / 0.08;
+        const impactForceLbf = Math.round(impactForceN * 0.224809);
+        const impactSpeedKts = Math.max(0.2, approachSpeedMps * 1.94384);
+        const yawKickDegPs = (deltaR * 180) / Math.PI;
+
+        // Record visual 3D shockwave & HUD telemetry if noticeable impact
+        if (impactForceLbf > 180 || simState.impact_timer_s <= 0.2) {
+          simState.impact_timer_s = 2.4;
+          simState.impact_world_x = contactWx;
+          simState.impact_world_y = contactWy;
+          simState.impact_nx = nx;
+          simState.impact_ny = ny;
+          simState.impact_force_lbf = impactForceLbf;
+          simState.impact_speed_kts = impactSpeedKts;
+          simState.impact_yaw_kick_degps = yawKickDegPs;
+          simState.impact_label = `${hullZone} → ${obstacleLabel}`;
+          simState.struck_piling_id = obsId || "";
+          simState.cam_shake_m = Math.min(0.32, 0.06 + approachSpeedMps * 0.18);
+
+          const pivotDir = Math.abs(yawKickDegPs) > 0.6
+            ? ` · Bow Pivoted ${yawKickDegPs > 0 ? "STBD ↻" : "PORT ↺"} (${yawKickDegPs > 0 ? "+" : ""}${yawKickDegPs.toFixed(1)}°/s)`
+            : "";
+          showToast(`💥 IMPACT: ${hullZone} bounced off ${obstacleLabel} at ${impactSpeedKts.toFixed(2)} kt (${impactForceLbf.toLocaleString()} lbf)${pivotDir}! Hit [R] to Rewind 15s.`);
+        }
+      }
+    }
+
+    function resolveMarinaRigidBodyCollisions(pkg, dt) {
+      const halfSlipM = (pkg.slip_width_ft * 0.3048) / 2;
+      const poly = getHullPolygon2D(pkg);
+
+      // 1. Define the 4 Physical Timber Pilings (Circles in 2D)
+      const pilings = [
+        { id: "port_outer", label: "Port Outer Piling", x: -halfSlipM, y: SLIP_LENGTH_M, r: 0.25, side: "port" },
+        { id: "stbd_outer", label: "Stbd Outer Piling", x:  halfSlipM, y: SLIP_LENGTH_M, r: 0.25, side: "stbd" },
+        { id: "port_inner", label: "Port Inner Piling", x: -halfSlipM, y: 0.8,           r: 0.22, side: "port" },
+        { id: "stbd_inner", label: "Stbd Inner Piling", x:  halfSlipM, y: 0.8,           r: 0.22, side: "stbd" }
+      ];
+
+      let minPortDistM = 99.0;
+      let minStbdDistM = 99.0;
+
+      // Test every Piling against all 13 Hull Polygon Edges
+      pilings.forEach(pil => {
+        let bestDist = 999.0;
+        let bestQx = pil.x, bestQy = pil.y;
+        let bestZone = "Midship Rub-Rail";
+
+        for (let i = 0; i < poly.length; i++) {
+          const a = poly[i];
+          const b = poly[(i + 1) % poly.length];
+          const cp = closestPointOnSegment2D(pil.x, pil.y, a.wx, a.wy, b.wx, b.wy);
+          const d = Math.hypot(pil.x - cp.qx, pil.y - cp.qy);
+          if (d < bestDist) {
+            bestDist = d;
+            bestQx = cp.qx;
+            bestQy = cp.qy;
+            bestZone = cp.t < 0.5 ? a.zone : b.zone;
+          }
+        }
+
+        const inside = isPointInsidePolygon2D(pil.x, pil.y, poly);
+        const signedClearanceM = inside ? -(bestDist + pil.r) : (bestDist - pil.r);
+
+        if (pil.side === "port") minPortDistM = Math.min(minPortDistM, signedClearanceM);
+        if (pil.side === "stbd") minStbdDistM = Math.min(minStbdDistM, signedClearanceM);
+
+        if (signedClearanceM < 0) {
+          // Compute outward normal from piling center toward hull
+          let dx = inside ? (simState.x_m - pil.x) : (bestQx - pil.x);
+          let dy = inside ? (simState.y_m - pil.y) : (bestQy - pil.y);
+          const len = Math.hypot(dx, dy) || 1.0;
+          const nx = dx / len;
+          const ny = dy / len;
+          applyRigidBodyCollisionImpulse(pkg, bestQx, bestQy, nx, ny, -signedClearanceM, pil.label, bestZone, pil.id);
+        }
+      });
+
+      // 2. Define Solid Marina Box Obstacles (Port Finger Pier, Starboard Finger Pier, 52' Neighbor Yacht, Main Seawall)
+      const fingerW = 0.82;
+      const nx52 = -halfSlipM - 4.1;
+      const boxes = [
+        {
+          id: "port_pier",
+          label: "Port Finger Pier",
+          minX: -halfSlipM - fingerW,
+          maxX: -halfSlipM - 0.04,
+          minY: 0.0,
+          maxY: SLIP_LENGTH_M - 0.15,
+          side: "port"
+        },
+        {
+          id: "stbd_pier",
+          label: "Stbd Finger Pier",
+          minX: halfSlipM + 0.04,
+          maxX: halfSlipM + fingerW,
+          minY: 0.0,
+          maxY: SLIP_LENGTH_M - 0.15,
+          side: "stbd"
+        },
+        {
+          id: "neighbor_52",
+          label: "52' Neighbor Yacht",
+          minX: nx52 - 2.30,
+          maxX: nx52 + 2.30,
+          minY: -0.4,
+          maxY: 15.20,
+          side: "port"
+        },
+        {
+          id: "main_seawall",
+          label: "Main Concrete Seawall",
+          minX: -28.0,
+          maxX: 28.0,
+          minY: -4.0,
+          maxY: 0.12,
+          side: "stern"
+        }
+      ];
+
+      // Refresh polygon after any piling depenetration
+      const poly2 = getHullPolygon2D(pkg);
+
+      boxes.forEach(box => {
+        // Check all hull vertices (and segment midpoints) against box
+        for (let i = 0; i < poly2.length; i++) {
+          const a = poly2[i];
+          const b = poly2[(i + 1) % poly2.length];
+          const testPts = [
+            a,
+            { wx: 0.5 * (a.wx + b.wx), wy: 0.5 * (a.wy + b.wy), zone: a.zone }
+          ];
+
+          for (let k = 0; k < testPts.length; k++) {
+            const p = testPts[k];
+            // Also update clearance to Port & Starboard finger piers when inside slip Y range
+            if (p.wy >= 0 && p.wy <= SLIP_LENGTH_M) {
+              if (box.id === "port_pier") {
+                minPortDistM = Math.min(minPortDistM, p.wx - box.maxX);
+              } else if (box.id === "stbd_pier") {
+                minStbdDistM = Math.min(minStbdDistM, box.minX - p.wx);
+              }
+            }
+
+            if (p.wx > box.minX && p.wx < box.maxX && p.wy > box.minY && p.wy < box.maxY) {
+              // Point is inside obstacle box — find shortest exit face
+              const dLeft = p.wx - box.minX;
+              const dRight = box.maxX - p.wx;
+              const dBot = p.wy - box.minY;
+              const dTop = box.maxY - p.wy;
+              const minD = Math.min(dLeft, dRight, dBot, dTop);
+
+              let nx = 0, ny = 0;
+              if (minD === dRight) nx = 1;
+              else if (minD === dLeft) nx = -1;
+              else if (minD === dTop) ny = 1;
+              else ny = -1;
+
+              applyRigidBodyCollisionImpulse(pkg, p.wx, p.wy, nx, ny, minD, box.label, p.zone, box.id);
+              break;
+            }
+          }
+        }
+
+        // Also check Box Corners against Hull Polygon (prevents midship hull edge from slicing across a pier corner or neighbor bow!)
+        const corners = [
+          { x: box.minX, y: box.minY },
+          { x: box.maxX, y: box.minY },
+          { x: box.maxX, y: box.maxY },
+          { x: box.minX, y: box.maxY }
+        ];
+        for (let c = 0; c < corners.length; c++) {
+          const cn = corners[c];
+          if (isPointInsidePolygon2D(cn.x, cn.y, poly2)) {
+            let bestD = 999, bestQx = cn.x, bestQy = cn.y, bestZone = "Hull Side";
+            for (let i = 0; i < poly2.length; i++) {
+              const a = poly2[i], b = poly2[(i + 1) % poly2.length];
+              const cp = closestPointOnSegment2D(cn.x, cn.y, a.wx, a.wy, b.wx, b.wy);
+              const d = Math.hypot(cn.x - cp.qx, cn.y - cp.qy);
+              if (d < bestD) { bestD = d; bestQx = cp.qx; bestQy = cp.qy; bestZone = a.zone; }
+            }
+            const dx = simState.x_m - cn.x;
+            const dy = simState.y_m - cn.y;
+            const len = Math.hypot(dx, dy) || 1;
+            applyRigidBodyCollisionImpulse(pkg, bestQx, bestQy, dx / len, dy / len, bestD + 0.04, box.label, bestZone, box.id);
+            break;
+          }
+        }
+      });
+
+      // Update True 2D Polygon-to-Piling/Pier Clearances (in inches) & Transom-to-Seawall distance (in feet)
+      simState.port_clearance_in = Math.max(0, minPortDistM * 39.3701);
+      simState.stbd_clearance_in = Math.max(0, minStbdDistM * 39.3701);
+
+      let minTransomY = 999;
+      for (let i = 0; i < poly2.length; i++) {
+        minTransomY = Math.min(minTransomY, poly2[i].wy);
+      }
+      simState.stern_seawall_ft = Math.max(0, minTransomY * 3.28084);
     }
 
     // =========================================================================
@@ -1939,28 +2260,39 @@
       };
     }
 
-    // Draw a 3D Timber Piling with Top Cap & Optional Inch-Accurate Clearance Badge
-    function drawTimberPiling3D(px, py, radiusM, heightM, badgeText, badgeColor) {
+    // Draw a 3D Timber Piling with Top Cap, Elastic Impact Flex & Inch-Accurate Clearance Badge
+    function drawTimberPiling3D(px, py, radiusM, heightM, badgeText, badgeColor, pilingId) {
       const W = canvas.width, H = canvas.height;
+      const isStruck = simState.impact_timer_s > 1.2 && simState.struck_piling_id === pilingId;
+      const flexDecay = isStruck ? Math.sin((simState.impact_timer_s - 1.2) * 18.0) * ((simState.impact_timer_s - 1.2) / 1.2) : 0;
+      const flexX = isStruck ? -simState.impact_nx * 0.22 * flexDecay : 0;
+      const flexY = isStruck ? -simState.impact_ny * 0.22 * flexDecay : 0;
+
       const base = project3D(px, py, 0, W, H);
-      const top = project3D(px, py, heightM, W, H);
+      const top = project3D(px + flexX, py + flexY, heightM, W, H);
       if (!base || !top) return;
 
       const rBase = Math.max(3, radiusM * base.scale);
       const rTop = Math.max(3, radiusM * top.scale);
 
-      // Waterline reflection ring
-      ctx.strokeStyle = "rgba(148, 163, 184, 0.35)";
-      ctx.lineWidth = 1.2;
+      // Waterline reflection / impact splash ring
+      ctx.strokeStyle = isStruck ? "rgba(244, 63, 94, 0.9)" : "rgba(148, 163, 184, 0.35)";
+      ctx.lineWidth = isStruck ? 2.5 : 1.2;
       ctx.beginPath();
-      ctx.ellipse(base.x, base.y, rBase * 1.4, rBase * 0.65, 0, 0, Math.PI * 2);
+      ctx.ellipse(base.x, base.y, rBase * (isStruck ? 2.2 : 1.4), rBase * (isStruck ? 1.1 : 0.65), 0, 0, Math.PI * 2);
       ctx.stroke();
 
       // Piling trunk cylinder
       const grad = ctx.createLinearGradient(base.x - rBase, base.y, base.x + rBase, base.y);
-      grad.addColorStop(0, "#3e2723");
-      grad.addColorStop(0.45, "#795548");
-      grad.addColorStop(1, "#271815");
+      if (isStruck) {
+        grad.addColorStop(0, "#7f1d1d");
+        grad.addColorStop(0.45, "#ef4444");
+        grad.addColorStop(1, "#450a0a");
+      } else {
+        grad.addColorStop(0, "#3e2723");
+        grad.addColorStop(0.45, "#795548");
+        grad.addColorStop(1, "#271815");
+      }
 
       ctx.fillStyle = grad;
       ctx.beginPath();
@@ -1970,12 +2302,12 @@
       ctx.lineTo(base.x + rBase, base.y);
       ctx.closePath();
       ctx.fill();
-      ctx.strokeStyle = "#a1887f";
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = isStruck ? "#fca5a5" : "#a1887f";
+      ctx.lineWidth = isStruck ? 2 : 1;
       ctx.stroke();
 
       // White/Weathered Piling Top Cone Cap
-      ctx.fillStyle = "#e2e8f0";
+      ctx.fillStyle = isStruck ? "#fecdd3" : "#e2e8f0";
       ctx.beginPath();
       ctx.ellipse(top.x, top.y, rTop, rTop * 0.5, 0, 0, Math.PI * 2);
       ctx.fill();
@@ -2405,8 +2737,8 @@
       const stbdBadgeCol = simState.stbd_clearance_in < 6 ? "#f43f5e" : (simState.stbd_clearance_in < 14 ? "#f59e0b" : "#34d399");
 
       // Inner Seawall Corner Pilings (Y = 0.8 m)
-      drawTimberPiling3D(-halfSlipM, 0.8, 0.18, 2.2, null, null);
-      drawTimberPiling3D( halfSlipM, 0.8, 0.18, 2.2, null, null);
+      drawTimberPiling3D(-halfSlipM, 0.8, 0.18, 2.2, null, null, "port_inner");
+      drawTimberPiling3D( halfSlipM, 0.8, 0.18, 2.2, null, null, "stbd_inner");
 
       // Outer Slip Entrance Pilings (Y = SLIP_LENGTH_M = 13.72 m / 45 ft)
       drawTimberPiling3D(
@@ -2415,7 +2747,8 @@
         0.22,
         2.5,
         `PORT: ${Math.max(0, simState.port_clearance_in).toFixed(1)}"`,
-        portBadgeCol
+        portBadgeCol,
+        "port_outer"
       );
       drawTimberPiling3D(
         halfSlipM,
@@ -2423,8 +2756,67 @@
         0.22,
         2.5,
         `STBD: ${Math.max(0, simState.stbd_clearance_in).toFixed(1)}"`,
-        stbdBadgeCol
+        stbdBadgeCol,
+        "stbd_outer"
       );
+
+      // 8. Draw 3D Impact Shockwave Ring, Rebound Force Vector & Pivot Callout at Exact Collision Point!
+      if (simState.impact_timer_s > 0) {
+        const alpha = Math.min(1, simState.impact_timer_s / 1.8);
+        const phase = 1.0 - (simState.impact_timer_s / 2.4);
+        const impScr = project3D(simState.impact_world_x, simState.impact_world_y, 0.9, W, H);
+
+        // 3D Rebound Force Vector Arrow showing the direction the piling/pier kicked the hull
+        const arrowTip = {
+          x: simState.impact_world_x + simState.impact_nx * 2.8,
+          y: simState.impact_world_y + simState.impact_ny * 2.8,
+          z: 0.9
+        };
+        drawLine3D(
+          { x: simState.impact_world_x, y: simState.impact_world_y, z: 0.9 },
+          arrowTip,
+          `rgba(244, 63, 94, ${alpha})`,
+          4.0
+        );
+
+        if (impScr) {
+          // Expanding 3D Impact Shockwave Rings
+          const r1 = 10 + phase * 38;
+          const r2 = 6 + phase * 22;
+          ctx.save();
+          ctx.strokeStyle = `rgba(244, 63, 94, ${alpha})`;
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(impScr.x, impScr.y, r1, 0, Math.PI * 2);
+          ctx.stroke();
+
+          ctx.fillStyle = `rgba(251, 191, 36, ${alpha * 0.85})`;
+          ctx.beginPath();
+          ctx.arc(impScr.x, impScr.y, r2 * 0.45, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Floating 3D Impact Telemetry Callout
+          const yawTxt = Math.abs(simState.impact_yaw_kick_degps) > 0.5
+            ? ` · Pivot ${simState.impact_yaw_kick_degps > 0 ? "↻" : "↺"}${Math.abs(simState.impact_yaw_kick_degps).toFixed(1)}°/s`
+            : "";
+          const badgeStr = `💥 BOUNCE: ${simState.impact_force_lbf.toLocaleString()} lbf${yawTxt}`;
+          ctx.font = "bold 11px 'JetBrains Mono', monospace";
+          const bw = ctx.measureText(badgeStr).width + 14;
+          ctx.fillStyle = `rgba(69, 10, 10, ${Math.min(0.95, alpha + 0.2)})`;
+          ctx.strokeStyle = "#f43f5e";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.roundRect(impScr.x - bw / 2, impScr.y - 34, bw, 20, 6);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = "#fecdd3";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(badgeStr, impScr.x, impScr.y - 24);
+          ctx.restore();
+        }
+      }
     }
 
     // =========================================================================
@@ -2463,6 +2855,20 @@
       sEl.className = `text-xs font-extrabold mono ${sIn < 6 ? "text-rose-400" : (sIn < 14 ? "text-amber-300" : "text-emerald-300")}`;
 
       document.getElementById("hudSternDist").textContent = `${simState.stern_seawall_ft.toFixed(1)} ft`;
+
+      // Update Live Contact / Impact Status Box
+      const cBox = document.getElementById("hudContactStatusBox");
+      const cLbl = document.getElementById("hudContactLabel");
+      const cFrc = document.getElementById("hudContactForce");
+      if (simState.impact_timer_s > 0) {
+        cBox.className = "mt-1.5 px-2 py-1 rounded bg-rose-950/80 border border-rose-500/70 text-[10px] mono text-rose-200 flex items-center justify-between";
+        cLbl.textContent = `💥 ${simState.impact_label}`;
+        cFrc.textContent = `${simState.impact_force_lbf.toLocaleString()} lbf`;
+      } else {
+        cBox.className = "mt-1.5 px-2 py-1 rounded bg-emerald-950/50 border border-emerald-500/30 text-[10px] mono text-emerald-300 flex items-center justify-between";
+        cLbl.textContent = "✓ Hull Clear (No Contact)";
+        cFrc.textContent = "0 lbf";
+      }
 
       const totalWind = simState.wind_base_kts + simState.gust_active_kts;
       document.getElementById("hudWindBase").textContent = `${totalWind.toFixed(1)} kt @ ${simState.wind_from_deg.toFixed(0)}°`;
