@@ -104,22 +104,37 @@
       </button>
     </div>
 
-    <!-- Scenario Presets + Golf Sim 15s Instant Rewind -->
-    <div class="flex items-center gap-1.5">
-      <select id="scenarioSelect" onchange="loadScenario(this.value)" class="bg-[#0b1018] text-xs font-semibold text-slate-200 border border-slate-700 rounded-md px-2.5 py-1.5 focus:outline-none focus:border-sky-400">
-        <option value="CB-01" selected>CB-01: GPYC Wind-Shadow Trap (16 kt Crosswind + 52' Neighbor Yacht Lee)</option>
+    <!-- 4 Docking Orientations + Scenario Presets + Auto-Captain + Golf Sim 15s Instant Rewind -->
+    <div class="flex items-center gap-1.5 flex-wrap">
+      <!-- 4 Docking Orientation Selector (Matching Pitch Deck Simulator) -->
+      <div class="flex items-center bg-[#0b1018] border border-sky-500/40 rounded-md px-2 py-1">
+        <span class="text-[10px] font-bold uppercase tracking-wider text-sky-300 mr-1.5">Berth:</span>
+        <select id="dockOrientSelect" onchange="selectDockOrientation(this.value)" class="bg-transparent text-xs font-extrabold text-white focus:outline-none cursor-pointer">
+          <option value="stern_in" class="bg-[#0b1018] text-white" selected>1. Finger Slip · Stern-In (Fairway → 90° Pivot → Back In)</option>
+          <option value="bow_in" class="bg-[#0b1018] text-white">2. Finger Slip · Bow-In (Fairway → 90° Turn → Drive In)</option>
+          <option value="port_to" class="bg-[#0b1018] text-white">3. Side-Tie Fuel Pocket · Port-Side-To (Blind Side)</option>
+          <option value="stbd_to" class="bg-[#0b1018] text-white">4. Side-Tie Fuel Pocket · Starboard-Side-To (Helm Side)</option>
+        </select>
+      </div>
+
+      <select id="scenarioSelect" onchange="loadScenario(this.value)" class="bg-[#0b1018] text-xs font-semibold text-slate-200 border border-slate-700 rounded-md px-2 py-1.5 focus:outline-none focus:border-sky-400">
+        <option value="CB-01" selected>CB-01: 16-kt Crosswind + 52' Yacht Lee Shadow</option>
         <option value="CB-02">CB-02: Mid-Pivot 22-kt Lake St. Clair Gust Stall</option>
-        <option value="CB-03">CB-03: 20-kt Beam Wind HMEX Joystick Saturation Test</option>
-        <option value="TC-SANDBOX">TC-01..08: Open-Water &amp; Slip Calibration Sandbox (0–25 kt)</option>
+        <option value="CB-03">CB-03: 20-kt Beam Wind HMEX Joystick Saturation</option>
+        <option value="TC-SANDBOX">Calm / Custom Wind Fairway Sandbox (0–25 kt)</option>
       </select>
 
-      <button id="btnRewind15" onclick="triggerGolfSimRewind(15)" title="Instant 15-Second Rewind (Shortcut: R)" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition">
+      <button id="btnAutoCaptain" onclick="toggleAutoCaptain()" title="Watch Virtual Captain execute the fairway approach, turn/pivot &amp; docking (Touch any control to take over manually)" class="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-400/50 font-extrabold text-xs transition">
+        <span>🤖 Auto-Captain: OFF</span>
+      </button>
+
+      <button id="btnRewind15" onclick="triggerGolfSimRewind(15)" title="Instant 15-Second Rewind (Shortcut: R)" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition">
         <span>⏪ Rewind 15s</span>
         <span class="text-[10px] mono bg-slate-950/20 px-1 rounded">[R]</span>
       </button>
 
-      <button onclick="resetScenario()" title="Reset Scenario to Start (Shortcut: Esc)" class="px-2.5 py-1.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs transition">
-        ↺ Reset
+      <button onclick="resetScenario()" title="Reset to Marina Fairway Cruise (Shortcut: Esc)" class="px-2.5 py-1.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs transition">
+        ↺ Fairway Start
       </button>
     </div>
   </header>
@@ -141,6 +156,12 @@
         <span id="hudFpsBadge" class="text-[10px] mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold">60 FPS · 50Hz</span>
       </div>
 
+      <!-- Active Maneuver Stage Banner -->
+      <div id="hudPhaseBox" class="mb-2 px-2.5 py-1.5 rounded-lg bg-sky-950/80 border border-sky-400/40 flex items-center justify-between">
+        <span class="text-[9.5px] font-extrabold uppercase tracking-wider text-sky-300">Stage:</span>
+        <span id="hudPhaseText" class="text-[11px] font-bold text-white mono">1. Cruising Marina Fairway (1.8 kt)</span>
+      </div>
+
       <!-- Primary Kinematic Readouts -->
       <div class="grid grid-cols-3 gap-1.5 mb-2 text-center">
         <div class="bg-[#090f17] border border-slate-800/90 rounded-lg p-1.5">
@@ -150,7 +171,7 @@
         </div>
         <div class="bg-[#090f17] border border-slate-800/90 rounded-lg p-1.5">
           <div class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">HDG vs COG</div>
-          <div id="hudHdg" class="text-sm font-extrabold mono text-sky-300">180°</div>
+          <div id="hudHdg" class="text-sm font-extrabold mono text-sky-300">090°</div>
           <div id="hudCrab" class="text-[9.5px] mono text-amber-300">Crab: 0.0°</div>
         </div>
         <div class="bg-[#090f17] border border-slate-800/90 rounded-lg p-1.5">
@@ -160,24 +181,24 @@
         </div>
       </div>
 
-      <!-- Real-Time Inch-Accurate Piling Clearances -->
+      <!-- Real-Time Inch-Accurate Piling / Side-Tie Pocket Clearances -->
       <div class="bg-[#090f17] border border-slate-800 rounded-lg p-2 mb-2">
         <div class="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-          <span>GPYC Slip Piling Clearance</span>
+          <span id="hudClearanceCardTitle">GPYC Slip Piling Clearance</span>
           <span id="hudSlipWidthTag" class="mono text-sky-300">15'0" Slip (22" Nominal)</span>
         </div>
         <div class="grid grid-cols-2 gap-2">
           <div id="cardPortClearance" class="flex items-center justify-between px-2 py-1 rounded bg-slate-900/90 border border-slate-800">
-            <span class="text-[10px] font-bold text-rose-300">PORT PILING</span>
+            <span id="lblClearanceLeft" class="text-[10px] font-bold text-rose-300">PORT PILING</span>
             <span id="hudPortClearance" class="text-xs font-extrabold mono text-emerald-300">22.0 in</span>
           </div>
           <div id="cardStbdClearance" class="flex items-center justify-between px-2 py-1 rounded bg-slate-900/90 border border-slate-800">
-            <span class="text-[10px] font-bold text-emerald-300">STBD PILING</span>
+            <span id="lblClearanceRight" class="text-[10px] font-bold text-emerald-300">STBD PILING</span>
             <span id="hudStbdClearance" class="text-xs font-extrabold mono text-emerald-300">22.0 in</span>
           </div>
         </div>
         <div class="flex items-center justify-between mt-1.5 pt-1 border-t border-slate-800/80 text-[10px] mono">
-          <span class="text-slate-400">Transom to Main Seawall:</span>
+          <span id="lblDockWallDist" class="text-slate-400">Transom to Main Seawall:</span>
           <span id="hudSternDist" class="font-bold text-white">34.2 ft</span>
         </div>
         <div id="hudContactStatusBox" class="mt-1.5 px-2 py-1 rounded bg-emerald-950/50 border border-emerald-500/30 text-[10px] mono text-emerald-300 flex items-center justify-between">
@@ -777,24 +798,26 @@
     // =========================================================================
     let activeBoatKey = "pursuit-s358-2023";
     let activeScenarioKey = "CB-01";
+    let activeDockOrient = "stern_in"; // 'stern_in' | 'bow_in' | 'port_to' | 'stbd_to'
+    let autoCaptainEnabled = false;
     let simPaused = false;
 
-    // Coordinate System (World Meters, GPYC East Basin):
-    // Target Slip Centerline is X = 0.
-    // Main Dock Seawall is at Y = 0.
-    // Slip Finger Piers & Outer Pilings extend from Y = 0 to Y = +13.72 m (45.0 ft).
-    // Fairway is Y > 13.72 m.
-    // Heading psi: 0 rad = North (+Y, pointing out into fairway), PI rad (180°) = South (-Y, pointing into slip).
-    // For Stern-In docking, boat heading psi is ~0° (000°, bow pointing North into fairway, stern backing South -Y into slip).
-    const SLIP_LENGTH_M = 13.72; // 45 ft slip depth
-    const NEIGHBOR_52_X_OFFSET_SIGN = -1; // Windward 52' Neighbor Yacht sits in the West (-X) slip, casting lee shadow across the target slip when wind blows from West (270°)
+    // Coordinate System (World Meters, GPYC East Basin Full Marina Fairway):
+    // - South Marina Row: Main Concrete Seawall at Y = 0.0 m; 4 Finger Slips & Moored Yachts extend to Y = 13.72 m (45.0 ft).
+    //   Target Finger Slip Centerline is X = 0.0 m.
+    // - Main Marina Fairway Channel: Y = 13.72 m to Y = 33.8 m (~66 ft wide channel), running West (-X = -26 m) to East (+X = +26 m).
+    // - North Side-Tie T-Head Pier & Fuel Dock Pocket: Pier wall at Y = 34.0 m, flanked by two 42' moored yachts creating a side-tie pocket centered at X = 0.0 m.
+    // - Heading psi: 0 rad = North (+Y), PI/2 (+90°) = East (+X down fairway), PI (180°) = South (-Y into slip), -PI/2 (270°) = West (-X down fairway).
+    const SLIP_LENGTH_M = 13.72; // 45 ft South finger slip depth
+    const NORTH_PIER_Y_M = 34.0; // North Side-Tie Fuel Dock & T-Head Pier wall Y coordinate
+    const NEIGHBOR_52_X_OFFSET_SIGN = -1; // Windward 52' Neighbor Yacht sits in the West (-X) slip, casting lee shadow across the target slip
 
     const simState = {
       time_s: 0,
-      x_m: 0.0,          // East (+X) / West (-X) position relative to slip centerline
-      y_m: 22.0,         // Distance North (+Y) from main seawall (13.72m = outer pilings)
-      psi_rad: 0.0,      // 0 = Bow North (+Y, stern facing slip at -Y); +CW (East)
-      u_mps: 0.0,        // Surge velocity (+ahead, -astern)
+      x_m: -19.5,        // East (+X) / West (-X) position relative to target berth centerline
+      y_m: 22.0,         // Distance North (+Y) from South main seawall
+      psi_rad: Math.PI * 0.5, // Starts heading 090° East cruising down the marina fairway!
+      u_mps: 0.92,       // Surge velocity (+ahead, -astern)
       v_mps: 0.0,        // Sway velocity (+starboard, -port)
       r_radps: 0.0,      // Yaw rate (+clockwise / starboard)
       roll_rad: 0.0,
@@ -807,14 +830,14 @@
       wheel_cmd_deg: 0.0,
       wheel_actual_deg: 0.0,
 
-      port_cmd: 0.0,     // -100 to +100
-      stbd_cmd: 0.0,     // -100 to +100
-      port_gear: 0,      // -1, 0, +1
-      stbd_gear: 0,
+      port_cmd: 18.0,    // -100 to +100
+      stbd_cmd: 18.0,    // -100 to +100
+      port_gear: 1,      // -1, 0, +1
+      stbd_gear: 1,
       port_shift_timer: 0.0,
       stbd_shift_timer: 0.0,
-      port_spool: 0.0,   // Actual normalized thrust [-1..+1]
-      stbd_spool: 0.0,
+      port_spool: 0.07,  // Actual normalized thrust [-1..+1]
+      stbd_spool: 0.07,
 
       thruster_cmd: 0.0, // -1 (Port) to +1 (Stbd)
       thruster_spool: 0.0,
@@ -828,7 +851,7 @@
 
       // Wind & Curveball Environment
       wind_base_kts: 16.0,
-      wind_from_deg: 270.0, // 270° = West wind blowing East (+X) across slip entrance
+      wind_from_deg: 270.0, // 270° = West wind blowing East (+X) down the fairway
       gust_active_kts: 0.0,
       gust_timer_s: 0.0,
       cb02_triggered: false,
@@ -839,6 +862,7 @@
       port_clearance_in: 22.0,
       stbd_clearance_in: 22.0,
       stern_seawall_ft: 35.0,
+      maneuver_stage: "1. Cruising Marina Fairway (1.8 kt)",
       contact_alert: ""
     };
 
@@ -911,8 +935,9 @@
       simState.cb02_triggered = snap.cb02_triggered;
 
       // Put levers in neutral on rewind so operator can immediately apply the corrected control input
-      allNeutralBinnacles();
-      zeroJoystick();
+      disableAutoCaptainOnManualInput(true);
+      allNeutralBinnacles(true);
+      zeroJoystick(true);
 
       ringWriteIdx = (targetIdx + 1) % RING_CAPACITY;
       ringCount -= stepsBack;
@@ -927,11 +952,74 @@
       t.textContent = msg;
       b.classList.remove("hidden");
       clearTimeout(window._toastTimer);
-      window._toastTimer = setTimeout(() => b.classList.add("hidden"), 3200);
+      window._toastTimer = setTimeout(() => b.classList.add("hidden"), 3600);
+    }
+
+    function selectDockOrientation(orientKey) {
+      activeDockOrient = orientKey;
+      const sel = document.getElementById("dockOrientSelect");
+      if (sel && sel.value !== orientKey) sel.value = orientKey;
+      updateClearanceCardLabels();
+      resetScenario();
+    }
+
+    function toggleAutoCaptain() {
+      autoCaptainEnabled = !autoCaptainEnabled;
+      syncAutoCaptainButtonUI();
+      if (autoCaptainEnabled) {
+        showToast("🤖 Auto-Captain Engaged — watching guided fairway approach, turn/pivot & docking. Touch any control to take over!");
+      } else {
+        showToast("🧑‍✈️ Manual Helm Control Active — drive through the marina fairway into your berth!");
+      }
+    }
+
+    function disableAutoCaptainOnManualInput(silent = false) {
+      if (!autoCaptainEnabled) return;
+      autoCaptainEnabled = false;
+      syncAutoCaptainButtonUI();
+      if (!silent) {
+        showToast("🧑‍✈️ Manual Helm Takeover — Auto-Captain yielded control to your input!");
+      }
+    }
+
+    function syncAutoCaptainButtonUI() {
+      const btn = document.getElementById("btnAutoCaptain");
+      if (!btn) return;
+      if (autoCaptainEnabled) {
+        btn.innerHTML = `<span>🤖 Auto-Captain: ON</span>`;
+        btn.className = "flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-emerald-500 text-slate-950 border border-white font-extrabold text-xs shadow-lg shadow-emerald-500/25 transition";
+      } else {
+        btn.innerHTML = `<span>🤖 Auto-Captain: OFF</span>`;
+        btn.className = "flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-400/50 font-extrabold text-xs transition";
+      }
+    }
+
+    function updateClearanceCardLabels() {
+      const pkg = BOAT_PACKAGES[activeBoatKey];
+      const titleEl = document.getElementById("hudClearanceCardTitle");
+      const tagEl = document.getElementById("hudSlipWidthTag");
+      const leftLbl = document.getElementById("lblClearanceLeft");
+      const rightLbl = document.getElementById("lblClearanceRight");
+      const wallLbl = document.getElementById("lblDockWallDist");
+
+      if (activeDockOrient === "stern_in" || activeDockOrient === "bow_in") {
+        titleEl.textContent = activeDockOrient === "stern_in" ? "Finger Slip Clearance (Stern-In)" : "Finger Slip Clearance (Bow-In)";
+        tagEl.textContent = `${pkg.slip_width_ft.toFixed(0)}'0" Slip (${pkg.nominal_clearance_in.toFixed(0)}" Nominal)`;
+        leftLbl.textContent = "PORT PILING";
+        rightLbl.textContent = "STBD PILING";
+        wallLbl.textContent = activeDockOrient === "stern_in" ? "Transom to Main Seawall:" : "Bow Stem to Main Seawall:";
+      } else {
+        const pocketLenFt = Math.round(pkg.loa_ft + 15);
+        titleEl.textContent = activeDockOrient === "port_to" ? "Side-Tie Fuel Pocket (Port-To)" : "Side-Tie Fuel Pocket (Stbd-To)";
+        tagEl.textContent = `${pocketLenFt}'0" Pocket (~7.5' F/A)`;
+        leftLbl.textContent = "AFT YACHT";
+        rightLbl.textContent = "FWD YACHT";
+        wallLbl.textContent = activeDockOrient === "port_to" ? "Port Beam to Fuel Pier:" : "Stbd Beam to Fuel Pier:";
+      }
     }
 
     // =========================================================================
-    // BOAT PACKAGE & SCENARIO INITIALIZATION
+    // BOAT PACKAGE & SCENARIO INITIALIZATION (MARINA FAIRWAY CRUISE SETUP)
     // =========================================================================
     function selectBoatPackage(boatKey) {
       activeBoatKey = boatKey;
@@ -956,8 +1044,8 @@
       document.getElementById("hudBoatTitle").textContent = pkg.name;
       document.getElementById("hudBoatSpecs").textContent =
         `${pkg.loa_ft.toFixed(1)}' × ${pkg.beam_ft.toFixed(1)}' · ${pkg.disp_lbs.toLocaleString()} lbs · ${pkg.slip_width_ft.toFixed(0)}'0" GPYC Slip`;
-      document.getElementById("hudSlipWidthTag").textContent =
-        `${pkg.slip_width_ft.toFixed(0)}'0" Slip (${pkg.nominal_clearance_in.toFixed(0)}" Nominal)`;
+
+      updateClearanceCardLabels();
 
       document.getElementById("lblWheelModeTag").textContent = pkg.controls.wheel_mode_tag;
       document.getElementById("wheelBehaviorNote").textContent = pkg.controls.wheel_note;
@@ -1012,12 +1100,10 @@
 
     function resetScenario() {
       const pkg = BOAT_PACKAGES[activeBoatKey];
-      allNeutralBinnacles();
-      centerWheel();
-      zeroJoystick();
+      centerWheel(true);
+      zeroJoystick(true);
 
       simState.time_s = 0;
-      simState.u_mps = 0;
       simState.v_mps = 0;
       simState.r_radps = 0;
       simState.roll_rad = 0;
@@ -1030,39 +1116,79 @@
       simState.gust_timer_s = 0;
       simState.cb02_triggered = false;
       simState.contact_alert = "";
+      simState.impact_timer_s = 0;
 
+      // Ambient wind according to Scenario Preset
       if (activeScenarioKey === "CB-01") {
-        // CB-01: Fairway-to-Slip Wind-Shadow Trap (Positioned outside outer pilings, lined up to back stern-in)
-        simState.x_m = -0.6; // Slight windward offset
-        simState.y_m = SLIP_LENGTH_M + pkg.loa_m * 0.65 + 3.5;
-        simState.psi_rad = -0.05; // Slight windward bow lead into West wind
-        simState.u_mps = -0.35;   // Gentle 0.7 kt sternway glide toward slip pilings
-        simState.wind_base_kts = 16.0;
-        simState.wind_from_deg = 270.0;
+        simState.wind_base_kts = 14.0;
+        simState.wind_from_deg = 270.0; // West wind down the fairway across the slip row
       } else if (activeScenarioKey === "CB-02") {
-        // CB-02: Mid-Pivot 22-kt Lake St. Clair Gust (Approaching down fairway heading East 090°, ready to pivot 90° to 000°)
-        simState.x_m = -3.0;
-        simState.y_m = SLIP_LENGTH_M + pkg.loa_m * 0.75 + 5.0;
-        simState.psi_rad = Math.PI * 0.42; // ~75° heading, turning CCW toward 000°
-        simState.u_mps = 0.0;
         simState.wind_base_kts = 12.0;
         simState.wind_from_deg = 270.0;
       } else if (activeScenarioKey === "CB-03") {
-        // CB-03: 20-kt Beam Wind HMEX Joystick Saturation Test
-        simState.x_m = 2.2;
-        simState.y_m = SLIP_LENGTH_M + pkg.loa_m * 0.65 + 4.0;
-        simState.psi_rad = 0.0;
-        simState.u_mps = 0.0;
         simState.wind_base_kts = 20.0;
         simState.wind_from_deg = 270.0;
       } else {
-        // TC-01..08 Open-Water & Slip Calibration Sandbox
-        simState.x_m = 0.0;
-        simState.y_m = SLIP_LENGTH_M + pkg.loa_m * 0.8 + 6.0;
-        simState.psi_rad = 0.0;
-        simState.u_mps = 0.0;
-        simState.wind_base_kts = 0.0;
+        simState.wind_base_kts = 4.0;
         simState.wind_from_deg = 270.0;
+      }
+
+      // MARINA FAIRWAY CRUISE STARTING SETUP (Cruising down the marina channel past moored boats!)
+      const idleRatio = pkg.propulsion.idle_ahead_thrust_n / pkg.propulsion.max_ahead_thrust_n;
+      if (activeDockOrient === "stern_in") {
+        // Cruising East (090°) down the main marina fairway channel past the West slips at 1.8 knots in Forward Idle
+        simState.x_m = -19.5;
+        simState.y_m = SLIP_LENGTH_M + pkg.loa_m * 0.55 + 4.2; // ~23.5 m (middle of fairway channel)
+        simState.psi_rad = Math.PI * 0.5; // 090° East
+        simState.u_mps = 0.92;            // ~1.8 knots headway in Forward Idle
+      } else if (activeDockOrient === "bow_in") {
+        // Cruising East (090°) slightly higher in the fairway to give turning radius for a 90° starboard turn bow-first into the slip
+        simState.x_m = -20.5;
+        simState.y_m = SLIP_LENGTH_M + pkg.loa_m * 0.65 + 5.2; // ~25.0 m
+        simState.psi_rad = Math.PI * 0.5; // 090° East
+        simState.u_mps = 0.95;            // ~1.85 knots headway
+      } else if (activeDockOrient === "port_to") {
+        // Cruising East (090°) down the fairway approaching the North Side-Tie Fuel Dock Pocket (Port / Blind side to pier)
+        simState.x_m = -20.0;
+        simState.y_m = 24.5;
+        simState.psi_rad = Math.PI * 0.5; // 090° East
+        simState.u_mps = 0.95;            // ~1.85 knots headway
+      } else if (activeDockOrient === "stbd_to") {
+        // Cruising West (270°) from the East marina fairway entrance approaching the North Side-Tie Fuel Dock Pocket (Starboard / Helm side to pier)
+        simState.x_m = 20.0;
+        simState.y_m = 24.5;
+        simState.psi_rad = -Math.PI * 0.5; // 270° West (-90°)
+        simState.u_mps = 0.95;             // ~1.85 knots headway
+      }
+
+      // Start with engines engaged in Forward Idle Detent (18%) matching the 1.8 kt fairway cruise!
+      simState.port_cmd = 18;
+      simState.port_gear = 1;
+      simState.port_shift_timer = 0;
+      simState.port_spool = idleRatio;
+      document.getElementById("ctrlPortThrottle").value = 18;
+
+      if (pkg.controls.single_throttle) {
+        simState.stbd_cmd = 0;
+        simState.stbd_gear = 0;
+        simState.stbd_shift_timer = 0;
+        simState.stbd_spool = 0;
+        document.getElementById("ctrlStbdThrottle").value = 0;
+      } else {
+        simState.stbd_cmd = 18;
+        simState.stbd_gear = 1;
+        simState.stbd_shift_timer = 0;
+        simState.stbd_spool = idleRatio;
+        document.getElementById("ctrlStbdThrottle").value = 18;
+      }
+      updateBinnacleUI();
+      updateClearanceCardLabels();
+
+      // Adjust camera angle so both the cruising boat in the fairway and the target berth are framed clearly
+      if (camMode === "chase") {
+        camOrbitYaw = activeDockOrient === "stbd_to" ? -0.32 : 0.32;
+        camOrbitPitch = 0.56;
+        camDist = 30.0;
       }
 
       document.getElementById("windSpeedSlider").value = simState.wind_base_kts;
@@ -1075,11 +1201,14 @@
     // =========================================================================
     // HELM CONTROL HANDLERS (WHEEL, BINNACLES, THRUSTER, 3-AXIS JOYSTICK)
     // =========================================================================
-    function onWheelInput(val) {
+    function onWheelInput(val, fromAutopilot = false) {
+      if (!fromAutopilot) disableAutoCaptainOnManualInput();
       simState.wheel_cmd_deg = parseFloat(val);
+      document.getElementById("ctrlWheelSlider").value = simState.wheel_cmd_deg;
       updateWheelUI();
     }
-    function centerWheel() {
+    function centerWheel(fromAutopilot = false) {
+      if (!fromAutopilot) disableAutoCaptainOnManualInput(true);
       simState.wheel_cmd_deg = 0;
       document.getElementById("ctrlWheelSlider").value = 0;
       updateWheelUI();
@@ -1097,7 +1226,7 @@
       const svg = document.getElementById("wheelSvg");
       svg.style.transform = `rotate(${deg * 4.5}deg)`;
     }
-    document.getElementById("wheelSvgWrap").addEventListener("click", centerWheel);
+    document.getElementById("wheelSvgWrap").addEventListener("click", () => centerWheel(false));
 
     function applyThrottleDetentSnap(rawVal) {
       const v = parseFloat(rawVal);
@@ -1107,7 +1236,8 @@
       return v;
     }
 
-    function onBinnacleSlider(side, val) {
+    function onBinnacleSlider(side, val, fromAutopilot = false) {
+      if (!fromAutopilot) disableAutoCaptainOnManualInput();
       const snapped = applyThrottleDetentSnap(val);
       const pkg = BOAT_PACKAGES[activeBoatKey];
       if (side === "port") {
@@ -1123,11 +1253,12 @@
       updateBinnacleUI();
     }
 
-    function setEngineDetent(side, val) {
-      onBinnacleSlider(side, val);
+    function setEngineDetent(side, val, fromAutopilot = false) {
+      onBinnacleSlider(side, val, fromAutopilot);
     }
 
-    function allNeutralBinnacles() {
+    function allNeutralBinnacles(fromAutopilot = false) {
+      if (!fromAutopilot) disableAutoCaptainOnManualInput();
       simState.port_cmd = 0;
       simState.stbd_cmd = 0;
       document.getElementById("ctrlPortThrottle").value = 0;
@@ -1136,15 +1267,16 @@
     }
 
     function setSplitPivot(dir) {
+      disableAutoCaptainOnManualInput();
       const pkg = BOAT_PACKAGES[activeBoatKey];
       if (pkg.controls.single_throttle) return;
-      centerWheel();
+      centerWheel(true);
       if (dir === "cw") {
-        setEngineDetent("port", 18);
-        setEngineDetent("stbd", -18);
+        setEngineDetent("port", 18, true);
+        setEngineDetent("stbd", -18, true);
       } else {
-        setEngineDetent("port", -18);
-        setEngineDetent("stbd", 18);
+        setEngineDetent("port", -18, true);
+        setEngineDetent("stbd", 18, true);
       }
     }
 
@@ -1163,7 +1295,8 @@
       document.getElementById("lblStbdGearRpm").textContent = formatGearRpm(simState.stbd_cmd, pkg);
     }
 
-    function setBowThrusterInput(dir) {
+    function setBowThrusterInput(dir, fromAutopilot = false) {
+      if (!fromAutopilot && dir !== 0) disableAutoCaptainOnManualInput();
       const pkg = BOAT_PACKAGES[activeBoatKey];
       if (!pkg.thruster.installed) {
         simState.thruster_cmd = 0;
@@ -1172,14 +1305,16 @@
       simState.thruster_cmd = dir;
     }
 
-    function onJoystickTwist(val) {
+    function onJoystickTwist(val, fromAutopilot = false) {
+      if (!fromAutopilot) disableAutoCaptainOnManualInput();
       const pkg = BOAT_PACKAGES[activeBoatKey];
       if (!pkg.joystick.enabled) return;
       simState.joy_z = parseFloat(val) / 100;
       updateJoystickUI();
     }
 
-    function zeroJoystick() {
+    function zeroJoystick(fromAutopilot = false) {
+      if (!fromAutopilot) disableAutoCaptainOnManualInput(true);
       simState.joy_x = 0;
       simState.joy_y = 0;
       simState.joy_z = 0;
@@ -1231,6 +1366,7 @@
     }
 
     function handleJoyPointer(e) {
+      disableAutoCaptainOnManualInput();
       const pkg = BOAT_PACKAGES[activeBoatKey];
       if (!pkg.joystick.enabled) return;
       const rect = joyCanvas.getBoundingClientRect();
@@ -1313,7 +1449,7 @@
       const k = e.key.toLowerCase();
       keysDown[k] = false;
       if (k === "q" || k === "e") {
-        setBowThrusterInput(0);
+        setBowThrusterInput(0, true);
       }
     });
 
@@ -1333,11 +1469,9 @@
       // Smooth keyboard wheel turning & joystick twist
       if (keysDown["a"] || keysDown["arrowleft"]) {
         onWheelInput(Math.max(-32, simState.wheel_cmd_deg - 28 * dt));
-        document.getElementById("ctrlWheelSlider").value = simState.wheel_cmd_deg;
       }
       if (keysDown["d"] || keysDown["arrowright"]) {
         onWheelInput(Math.min(32, simState.wheel_cmd_deg + 28 * dt));
-        document.getElementById("ctrlWheelSlider").value = simState.wheel_cmd_deg;
       }
       if (keysDown["j"]) {
         onJoystickTwist(Math.max(-100, simState.joy_z * 100 - 80 * dt));
@@ -1365,7 +1499,6 @@
       const ax0 = activePad.axes[0] || 0;
       if (Math.abs(ax0) > 0.08) {
         onWheelInput(ax0 * 32);
-        document.getElementById("ctrlWheelSlider").value = simState.wheel_cmd_deg;
       }
       // Axis 2 & 3: 3-Axis Joystick Crab X/Y (if enabled)
       const pkg = BOAT_PACKAGES[activeBoatKey];
@@ -1373,6 +1506,7 @@
         const jx = activePad.axes[2] || 0;
         const jy = -(activePad.axes[3] || 0);
         if (Math.hypot(jx, jy) > 0.12) {
+          disableAutoCaptainOnManualInput();
           simState.joy_x = jx;
           simState.joy_y = jy;
           updateJoystickUI();
@@ -1391,11 +1525,245 @@
     }
 
     // =========================================================================
+    // MANEUVER STAGE EVALUATOR & CLOSED-LOOP AUTO-CAPTAIN AUTOPILOT (ALL 4 BERTHS)
+    // =========================================================================
+    function wrapAngleRad(a) {
+      while (a > Math.PI) a -= Math.PI * 2;
+      while (a < -Math.PI) a += Math.PI * 2;
+      return a;
+    }
+
+    function updateManeuverStageAndAutoCaptain(pkg, dt) {
+      // 1. Update Live Maneuver Stage Readout for HUD
+      if (activeDockOrient === "stern_in") {
+        const hdgErr = Math.abs(wrapAngleRad(simState.psi_rad - 0));
+        if (simState.x_m < -5.5 && hdgErr > 0.65) {
+          simState.maneuver_stage = "1. Cruising Fairway East → Approach Pivot Zone";
+        } else if (hdgErr > 0.25 && simState.y_m > SLIP_LENGTH_M + 2.0) {
+          simState.maneuver_stage = "2. Fairway 90° Pivot (Aligning Transom to Slip)";
+        } else if (simState.y_m > SLIP_LENGTH_M) {
+          simState.maneuver_stage = "3. Backing Stern-In Between Outer Pilings";
+        } else if (simState.y_m > pkg.loa_m * 0.5 + 1.8) {
+          simState.maneuver_stage = "4. Crossing 52' Yacht Wind-Shadow Lee";
+        } else {
+          simState.maneuver_stage = "✓ Berthed Stern-In · Check Way in Neutral";
+        }
+      } else if (activeDockOrient === "bow_in") {
+        const hdgErr = Math.abs(wrapAngleRad(simState.psi_rad - Math.PI));
+        if (simState.x_m < -6.5 && hdgErr > 0.7) {
+          simState.maneuver_stage = "1. Cruising Fairway East → Approach Turn-In Point";
+        } else if (hdgErr > 0.28 && simState.y_m > SLIP_LENGTH_M + 1.5) {
+          simState.maneuver_stage = "2. Turning 90° Starboard Around Weather Piling";
+        } else if (simState.y_m > SLIP_LENGTH_M) {
+          simState.maneuver_stage = "3. Entering Slip Bow-First (Crab into Crosswind)";
+        } else if (simState.y_m > pkg.loa_m * 0.5 + 2.0) {
+          simState.maneuver_stage = "4. Gliding into Slip Lee · Check Forward Way";
+        } else {
+          simState.maneuver_stage = "✓ Berthed Bow-In · Reverse Pulse to Stop";
+        }
+      } else if (activeDockOrient === "port_to") {
+        const dockY = NORTH_PIER_Y_M - pkg.beam_m * 0.5 - 0.55;
+        if (simState.x_m < -7.5) {
+          simState.maneuver_stage = "1. Fairway Approach → Angle 18° to North Fuel Pocket";
+        } else if (simState.y_m < dockY - 1.4) {
+          simState.maneuver_stage = "2. Gliding Into Pocket Between 42' Moored Yachts";
+        } else if (Math.hypot(simState.u_mps, simState.v_mps) > 0.15) {
+          simState.maneuver_stage = "3. Swinging Parallel & Checking Way (Port-Side-To)";
+        } else {
+          simState.maneuver_stage = "✓ Berthed Port-Side-To Fuel Dock";
+        }
+      } else if (activeDockOrient === "stbd_to") {
+        const dockY = NORTH_PIER_Y_M - pkg.beam_m * 0.5 - 0.55;
+        if (simState.x_m > 7.5) {
+          simState.maneuver_stage = "1. Westbound Fairway → Angle 18° to Fuel Pocket";
+        } else if (simState.y_m < dockY - 1.4) {
+          simState.maneuver_stage = "2. Gliding Into Pocket (Starboard Helm Side to Pier)";
+        } else if (Math.hypot(simState.u_mps, simState.v_mps) > 0.15) {
+          simState.maneuver_stage = "3. Swinging Parallel & Checking Way (Stbd-Side-To)";
+        } else {
+          simState.maneuver_stage = "✓ Berthed Starboard-Side-To Fuel Dock";
+        }
+      }
+
+      if (!autoCaptainEnabled) return;
+
+      // 2. Closed-Loop Virtual Captain Autopilot
+      zeroJoystick(true);
+      let cmdWheel = 0;
+      let cmdPort = 0;
+      let cmdStbd = 0;
+      let cmdThr = 0;
+
+      if (activeDockOrient === "stern_in") {
+        // Phase A: Cruise East down fairway until X >= -2.5m
+        const hdgErr0 = wrapAngleRad(0 - simState.psi_rad); // Target heading 000° (Bow North, Stern South toward slip)
+        if (simState.x_m < -3.2 && Math.abs(hdgErr0) > 0.45) {
+          // Cruising East along Y ~ 23m
+          const targetY = SLIP_LENGTH_M + pkg.loa_m * 0.55 + 4.2;
+          const targetPsi = Math.PI * 0.5 + Math.max(-0.25, Math.min(0.25, (simState.y_m - targetY) * 0.12));
+          const errE = wrapAngleRad(targetPsi - simState.psi_rad);
+          cmdWheel = Math.max(-28, Math.min(28, errE * 55));
+          const targetU = simState.x_m < -7.0 ? 1.05 : 0.45;
+          const bump = simState.u_mps < targetU ? 18 : 0;
+          cmdPort = bump;
+          cmdStbd = pkg.controls.single_throttle ? 0 : bump;
+        } else if (Math.abs(hdgErr0) > 0.18 && simState.y_m > SLIP_LENGTH_M + 2.0) {
+          // Phase B: Stop & execute 90° CCW pivot in fairway to heading 000°
+          if (simState.u_mps > 0.25) {
+            cmdWheel = -28;
+            cmdPort = -18;
+            cmdStbd = pkg.controls.single_throttle ? 0 : -18;
+          } else if (pkg.controls.single_throttle) {
+            // 25' Single I/O: alternate short ahead port-wheel & astern stbd-wheel bumps to pivot
+            const cyc = (simState.time_s % 3.2);
+            if (cyc < 1.6) { cmdWheel = -30; cmdPort = 18; }
+            else { cmdWheel = 30; cmdPort = -18; }
+          } else {
+            // Twin Engine Split-Throttle Pivot CCW (Port Astern, Stbd Ahead)
+            cmdWheel = 0;
+            cmdPort = hdgErr0 < 0 ? -18 : 18;
+            cmdStbd = hdgErr0 < 0 ? 18 : -18;
+            if (pkg.thruster.installed) cmdThr = hdgErr0 < 0 ? -1 : 1;
+          }
+        } else {
+          // Phase C: Back Stern-In along X = 0 into the slip to target Y = pkg.loa_m * 0.5 + 1.5m
+          const targetY = pkg.loa_m * 0.5 + 1.6;
+          const distY = simState.y_m - targetY;
+          // Windward lead on X
+          const windLeadX = (simState.wind_base_kts > 8 && simState.y_m > SLIP_LENGTH_M - 1) ? -0.35 : 0.0;
+          const xErr = simState.x_m - windLeadX; // + means too far East (Starboard)
+          // Desired heading to correct X while backing (-u): if too far East (+xErr), point stern West (+psi)
+          const desPsi = Math.max(-0.22, Math.min(0.22, xErr * 0.22));
+          const psiErr = wrapAngleRad(desPsi - simState.psi_rad);
+
+          if (distY > 0.6) {
+            const desU = -Math.min(0.58, Math.max(0.18, distY * 0.08));
+            const needAstern = simState.u_mps > desU + 0.04;
+            if (pkg.controls.single_throttle) {
+              // In reverse on Single I/O, positive wheel pulls stern to Starboard (+X), negative wheel pulls stern to Port (-X)
+              cmdWheel = Math.max(-28, Math.min(28, -xErr * 18 - psiErr * 45));
+              cmdPort = needAstern ? -18 : 0;
+            } else if (pkg.propulsion.steerable_props) {
+              cmdWheel = Math.max(-25, Math.min(25, -xErr * 15 - psiErr * 40));
+              cmdPort = needAstern ? -18 : 0;
+              cmdStbd = needAstern ? -18 : 0;
+              if (pkg.thruster.installed && Math.abs(psiErr) > 0.04) cmdThr = psiErr > 0 ? 1 : -1;
+            } else {
+              // 52' Fixed-Shaft Inboard: Center wheel, steer with split reverse throttles + thruster
+              cmdWheel = 0;
+              const base = needAstern ? -18 : 0;
+              cmdPort = psiErr > 0.05 ? 0 : base;
+              cmdStbd = psiErr < -0.05 ? 0 : base;
+              if (pkg.thruster.installed && Math.abs(psiErr) > 0.03) cmdThr = psiErr > 0 ? 1 : -1;
+            }
+          } else {
+            // Arrived in slip: check sternway to 0
+            cmdWheel = 0;
+            if (simState.u_mps < -0.08) {
+              cmdPort = 18;
+              cmdStbd = pkg.controls.single_throttle ? 0 : 18;
+            }
+          }
+        }
+      } else if (activeDockOrient === "bow_in") {
+        // Phase A: Cruise East until X >= -5.2m, then turn 90° Starboard (CW) toward 180° (PI rad, Bow South into slip)
+        const targetY = pkg.loa_m * 0.5 + 1.7;
+        if (simState.x_m < -5.8 && simState.y_m > SLIP_LENGTH_M + 2.0) {
+          const errE = wrapAngleRad(Math.PI * 0.5 - simState.psi_rad);
+          cmdWheel = Math.max(-26, Math.min(26, errE * 50));
+          cmdPort = simState.u_mps < 0.85 ? 18 : 0;
+          cmdStbd = pkg.controls.single_throttle ? 0 : cmdPort;
+        } else if (simState.y_m > targetY + 0.6) {
+          // Aim bow toward slip centerline (X = 0, Y = targetY)
+          const lookY = Math.max(targetY, simState.y_m - 6.5);
+          const windLeadX = (simState.wind_base_kts > 8 && simState.y_m > SLIP_LENGTH_M) ? -0.45 : 0.0;
+          const aimX = windLeadX - simState.x_m;
+          const aimY = lookY - simState.y_m;
+          const desPsi = Math.atan2(aimX, aimY);
+          const psiErr = wrapAngleRad(desPsi - simState.psi_rad);
+
+          cmdWheel = Math.max(-30, Math.min(30, psiErr * 65));
+          const distY = simState.y_m - targetY;
+          const desU = Math.min(0.75, Math.max(0.22, distY * 0.09));
+          const fwdCmd = simState.u_mps < desU ? 18 : (simState.u_mps > desU + 0.25 ? -18 : 0);
+
+          if (!pkg.controls.single_throttle && Math.abs(psiErr) > 0.28) {
+            // Assist turn with differential twin throttles
+            cmdPort = psiErr > 0 ? 18 : -18;
+            cmdStbd = psiErr > 0 ? -18 : 18;
+          } else {
+            cmdPort = fwdCmd;
+            cmdStbd = pkg.controls.single_throttle ? 0 : fwdCmd;
+          }
+          if (pkg.thruster.installed && Math.abs(psiErr) > 0.06) {
+            cmdThr = psiErr > 0 ? 1 : -1;
+          }
+        } else {
+          // Check forward way before seawall
+          cmdWheel = 0;
+          if (simState.u_mps > 0.08) {
+            cmdPort = -18;
+            cmdStbd = pkg.controls.single_throttle ? 0 : -18;
+          }
+        }
+      } else if (activeDockOrient === "port_to" || activeDockOrient === "stbd_to") {
+        // Side-Tie Fuel Dock Pocket at X = 0, Y = NORTH_PIER_Y_M - halfBeam - 0.55
+        const isPortTo = activeDockOrient === "port_to";
+        const targetHeading = isPortTo ? Math.PI * 0.5 : -Math.PI * 0.5;
+        const targetY = NORTH_PIER_Y_M - pkg.beam_m * 0.5 - 0.55;
+        const targetX = 0.0;
+
+        const alongRemain = isPortTo ? (targetX - simState.x_m) : (simState.x_m - targetX);
+        const yErr = targetY - simState.y_m; // + means need to move North (+Y) toward pier
+
+        if (alongRemain > 1.2) {
+          // Approach pocket at controlled angle (up to 22° toward North Pier)
+          const approachAngle = Math.max(-0.38, Math.min(0.38, yErr * 0.09));
+          // For Eastbound (+PI/2), North (+Y) is to Port (-psi offset); for Westbound (-PI/2), North (+Y) is to Starboard (+psi offset)
+          const desPsi = isPortTo ? (targetHeading - approachAngle) : (targetHeading + approachAngle);
+          const psiErr = wrapAngleRad(desPsi - simState.psi_rad);
+
+          cmdWheel = Math.max(-28, Math.min(28, psiErr * 60));
+          const desU = Math.min(0.88, Math.max(0.25, alongRemain * 0.09));
+          const fwdCmd = simState.u_mps < desU ? 18 : (simState.u_mps > desU + 0.22 ? -18 : 0);
+          cmdPort = fwdCmd;
+          cmdStbd = pkg.controls.single_throttle ? 0 : fwdCmd;
+          if (pkg.thruster.installed && alongRemain < 6.0 && yErr > 0.3) {
+            cmdThr = isPortTo ? -1 : 1;
+          }
+        } else {
+          // Inside pocket: swing parallel to pier & check way
+          const psiErr = wrapAngleRad(targetHeading - simState.psi_rad);
+          cmdWheel = Math.max(-25, Math.min(25, psiErr * 55));
+          if (simState.u_mps > 0.10) {
+            cmdPort = -18;
+            cmdStbd = pkg.controls.single_throttle ? 0 : -18;
+          } else if (simState.u_mps < -0.10) {
+            cmdPort = 18;
+            cmdStbd = pkg.controls.single_throttle ? 0 : 18;
+          }
+          if (pkg.thruster.installed && Math.abs(psiErr) > 0.04) {
+            cmdThr = psiErr > 0 ? 1 : -1;
+          }
+        }
+      }
+
+      onWheelInput(cmdWheel, true);
+      onBinnacleSlider("port", cmdPort, true);
+      if (!pkg.controls.single_throttle) {
+        onBinnacleSlider("stbd", cmdStbd, true);
+      }
+      setBowThrusterInput(cmdThr, true);
+    }
+
+    // =========================================================================
     // 50 HZ 3-DOF+ BEHAVIORAL MANEUVERING PHYSICS SOLVER
     // =========================================================================
     function stepPhysics50Hz(dt) {
       const pkg = BOAT_PACKAGES[activeBoatKey];
       simState.time_s += dt;
+
+      updateManeuverStageAndAutoCaptain(pkg, dt);
 
       // 1. Steering Actuator Rate Limiting
       const maxSteer = pkg.propulsion.max_steer_deg;
@@ -1852,18 +2220,33 @@
 
     function resolveMarinaRigidBodyCollisions(pkg, dt) {
       const halfSlipM = (pkg.slip_width_ft * 0.3048) / 2;
+      const halfPocketM = pkg.loa_m * 0.5 + 2.3; // Side-tie pocket half-length (~7.5 ft fore and aft clearance)
+      const fingerW = 0.82;
+      const nx52 = -halfSlipM - 4.1;
+      const nxWest36 = nx52 - 5.8;
+      const nxEast40 = halfSlipM + 4.8;
       const poly = getHullPolygon2D(pkg);
 
-      // 1. Define the 4 Physical Timber Pilings (Circles in 2D)
+      // 1. Define All Physical Timber Pilings Across the South Slip Row & North Side-Tie Fuel Pocket (Circles in 2D)
       const pilings = [
-        { id: "port_outer", label: "Port Outer Piling", x: -halfSlipM, y: SLIP_LENGTH_M, r: 0.25, side: "port" },
-        { id: "stbd_outer", label: "Stbd Outer Piling", x:  halfSlipM, y: SLIP_LENGTH_M, r: 0.25, side: "stbd" },
-        { id: "port_inner", label: "Port Inner Piling", x: -halfSlipM, y: 0.8,           r: 0.22, side: "port" },
-        { id: "stbd_inner", label: "Stbd Inner Piling", x:  halfSlipM, y: 0.8,           r: 0.22, side: "stbd" }
+        // Target Finger Slip Pilings (X = ±halfSlipM)
+        { id: "west_outer",      label: "West Entrance Piling",     x: -halfSlipM,          y: SLIP_LENGTH_M,        r: 0.25, group: "target_west" },
+        { id: "east_outer",      label: "East Entrance Piling",     x:  halfSlipM,          y: SLIP_LENGTH_M,        r: 0.25, group: "target_east" },
+        { id: "west_inner",      label: "West Inner Piling",        x: -halfSlipM,          y: 0.8,                  r: 0.22, group: "target_west" },
+        { id: "east_inner",      label: "East Inner Piling",        x:  halfSlipM,          y: 0.8,                  r: 0.22, group: "target_east" },
+        // Neighboring Slip Outer Pilings along South Fairway Line
+        { id: "far_west_piling", label: "West Neighbor Slip Piling", x: nx52 - 2.65,        y: SLIP_LENGTH_M,        r: 0.24, group: "other" },
+        { id: "far_west2_pil",   label: "Far-West Slip Piling",      x: nxWest36 - 2.2,     y: SLIP_LENGTH_M,        r: 0.24, group: "other" },
+        { id: "far_east_piling", label: "East Neighbor Slip Piling", x: nxEast40 + 2.4,     y: SLIP_LENGTH_M,        r: 0.24, group: "other" },
+        // North Side-Tie Fuel Dock Pocket Corner Fender Pilings
+        { id: "pocket_west_pil", label: "West Fuel Pocket Piling",   x: -halfPocketM,       y: NORTH_PIER_Y_M - 0.25, r: 0.25, group: "pocket_west" },
+        { id: "pocket_east_pil", label: "East Fuel Pocket Piling",   x:  halfPocketM,       y: NORTH_PIER_Y_M - 0.25, r: 0.25, group: "pocket_east" }
       ];
 
-      let minPortDistM = 99.0;
-      let minStbdDistM = 99.0;
+      let minWestSlipM = 99.0;
+      let minEastSlipM = 99.0;
+      let minWestPocketM = 99.0;
+      let minEastPocketM = 99.0;
 
       // Test every Piling against all 13 Hull Polygon Edges
       pilings.forEach(pil => {
@@ -1887,11 +2270,12 @@
         const inside = isPointInsidePolygon2D(pil.x, pil.y, poly);
         const signedClearanceM = inside ? -(bestDist + pil.r) : (bestDist - pil.r);
 
-        if (pil.side === "port") minPortDistM = Math.min(minPortDistM, signedClearanceM);
-        if (pil.side === "stbd") minStbdDistM = Math.min(minStbdDistM, signedClearanceM);
+        if (pil.group === "target_west") minWestSlipM = Math.min(minWestSlipM, signedClearanceM);
+        if (pil.group === "target_east") minEastSlipM = Math.min(minEastSlipM, signedClearanceM);
+        if (pil.group === "pocket_west") minWestPocketM = Math.min(minWestPocketM, signedClearanceM);
+        if (pil.group === "pocket_east") minEastPocketM = Math.min(minEastPocketM, signedClearanceM);
 
         if (signedClearanceM < 0) {
-          // Compute outward normal from piling center toward hull
           let dx = inside ? (simState.x_m - pil.x) : (bestQx - pil.x);
           let dy = inside ? (simState.y_m - pil.y) : (bestQy - pil.y);
           const len = Math.hypot(dx, dy) || 1.0;
@@ -1901,45 +2285,100 @@
         }
       });
 
-      // 2. Define Solid Marina Box Obstacles (Port Finger Pier, Starboard Finger Pier, 52' Neighbor Yacht, Main Seawall)
-      const fingerW = 0.82;
-      const nx52 = -halfSlipM - 4.1;
+      // 2. Define All Solid Marina Box Obstacles (South Slips & Moored Yachts + North Side-Tie Fuel Pier & Flanking 42' Yachts)
       const boxes = [
+        // South Marina Target Finger Piers
         {
-          id: "port_pier",
-          label: "Port Finger Pier",
+          id: "west_pier",
+          label: "West Finger Pier",
           minX: -halfSlipM - fingerW,
           maxX: -halfSlipM - 0.04,
           minY: 0.0,
-          maxY: SLIP_LENGTH_M - 0.15,
-          side: "port"
+          maxY: SLIP_LENGTH_M - 0.15
         },
         {
-          id: "stbd_pier",
-          label: "Stbd Finger Pier",
+          id: "east_pier",
+          label: "East Finger Pier",
           minX: halfSlipM + 0.04,
           maxX: halfSlipM + fingerW,
           minY: 0.0,
-          maxY: SLIP_LENGTH_M - 0.15,
-          side: "stbd"
+          maxY: SLIP_LENGTH_M - 0.15
         },
+        // South Marina Moored Neighbor Yachts & Adjacent Finger Piers
         {
           id: "neighbor_52",
-          label: "52' Neighbor Yacht",
+          label: "52' Windward Neighbor Yacht",
           minX: nx52 - 2.30,
           maxX: nx52 + 2.30,
           minY: -0.4,
-          maxY: 15.20,
-          side: "port"
+          maxY: 15.20
         },
         {
+          id: "west_neighbor_pier",
+          label: "West Neighbor Finger Pier",
+          minX: nx52 - 2.65 - fingerW,
+          maxX: nx52 - 2.65,
+          minY: 0.0,
+          maxY: SLIP_LENGTH_M - 0.15
+        },
+        {
+          id: "neighbor_west_36",
+          label: "36' Far-West Moored Cruiser",
+          minX: nxWest36 - 1.75,
+          maxX: nxWest36 + 1.75,
+          minY: 0.4,
+          maxY: 11.40
+        },
+        {
+          id: "neighbor_east_40",
+          label: "40' East Moored Sportfish",
+          minX: nxEast40 - 1.95,
+          maxX: nxEast40 + 1.95,
+          minY: 0.4,
+          maxY: 12.60
+        },
+        {
+          id: "east_neighbor_pier",
+          label: "East Neighbor Finger Pier",
+          minX: nxEast40 + 2.40,
+          maxX: nxEast40 + 2.40 + fingerW,
+          minY: 0.0,
+          maxY: SLIP_LENGTH_M - 0.15
+        },
+        // South Main Concrete Seawall
+        {
           id: "main_seawall",
-          label: "Main Concrete Seawall",
-          minX: -28.0,
-          maxX: 28.0,
+          label: "South Main Concrete Seawall",
+          minX: -32.0,
+          maxX: 32.0,
           minY: -4.0,
-          maxY: 0.12,
-          side: "stern"
+          maxY: 0.12
+        },
+        // North Side-Tie T-Head Pier / Fuel Dock Wall (Y = 34.0 m)
+        {
+          id: "north_fuel_pier",
+          label: "North Side-Tie Fuel Dock Wall",
+          minX: -32.0,
+          maxX: 32.0,
+          minY: NORTH_PIER_Y_M,
+          maxY: NORTH_PIER_Y_M + 3.5
+        },
+        // North Side-Tie Pocket Flanking Moored 42' Yachts (West & East of Fuel Pocket)
+        {
+          id: "north_west_yacht",
+          label: "West 42' Fuel Dock Moored Yacht",
+          minX: -halfPocketM - 13.0,
+          maxX: -halfPocketM - 0.35,
+          minY: NORTH_PIER_Y_M - 4.05,
+          maxY: NORTH_PIER_Y_M - 0.15
+        },
+        {
+          id: "north_east_yacht",
+          label: "East 42' Fuel Dock Moored Yacht",
+          minX: halfPocketM + 0.35,
+          maxX: halfPocketM + 13.0,
+          minY: NORTH_PIER_Y_M - 4.05,
+          maxY: NORTH_PIER_Y_M - 0.15
         }
       ];
 
@@ -1947,7 +2386,6 @@
       const poly2 = getHullPolygon2D(pkg);
 
       boxes.forEach(box => {
-        // Check all hull vertices (and segment midpoints) against box
         for (let i = 0; i < poly2.length; i++) {
           const a = poly2[i];
           const b = poly2[(i + 1) % poly2.length];
@@ -1958,17 +2396,24 @@
 
           for (let k = 0; k < testPts.length; k++) {
             const p = testPts[k];
-            // Also update clearance to Port & Starboard finger piers when inside slip Y range
+            // Update clearance to West/East Finger Piers when inside South slip Y range
             if (p.wy >= 0 && p.wy <= SLIP_LENGTH_M) {
-              if (box.id === "port_pier") {
-                minPortDistM = Math.min(minPortDistM, p.wx - box.maxX);
-              } else if (box.id === "stbd_pier") {
-                minStbdDistM = Math.min(minStbdDistM, box.minX - p.wx);
+              if (box.id === "west_pier") {
+                minWestSlipM = Math.min(minWestSlipM, p.wx - box.maxX);
+              } else if (box.id === "east_pier") {
+                minEastSlipM = Math.min(minEastSlipM, box.minX - p.wx);
+              }
+            }
+            // Update clearance to North Pocket flanking moored yachts when near North Fuel Pier
+            if (p.wy >= NORTH_PIER_Y_M - 6.0) {
+              if (box.id === "north_west_yacht") {
+                minWestPocketM = Math.min(minWestPocketM, p.wx - box.maxX);
+              } else if (box.id === "north_east_yacht") {
+                minEastPocketM = Math.min(minEastPocketM, box.minX - p.wx);
               }
             }
 
             if (p.wx > box.minX && p.wx < box.maxX && p.wy > box.minY && p.wy < box.maxY) {
-              // Point is inside obstacle box — find shortest exit face
               const dLeft = p.wx - box.minX;
               const dRight = box.maxX - p.wx;
               const dBot = p.wy - box.minY;
@@ -1987,7 +2432,7 @@
           }
         }
 
-        // Also check Box Corners against Hull Polygon (prevents midship hull edge from slicing across a pier corner or neighbor bow!)
+        // Check Box Corners against Hull Polygon
         const corners = [
           { x: box.minX, y: box.minY },
           { x: box.maxX, y: box.minY },
@@ -2013,15 +2458,36 @@
         }
       });
 
-      // Update True 2D Polygon-to-Piling/Pier Clearances (in inches) & Transom-to-Seawall distance (in feet)
-      simState.port_clearance_in = Math.max(0, minPortDistM * 39.3701);
-      simState.stbd_clearance_in = Math.max(0, minStbdDistM * 39.3701);
-
-      let minTransomY = 999;
-      for (let i = 0; i < poly2.length; i++) {
-        minTransomY = Math.min(minTransomY, poly2[i].wy);
+      // 3. Map Clearances to HUD according to Active Docking Orientation:
+      // - In 'stern_in' (Heading ~000° North): Port side of boat faces West (-X), Starboard side faces East (+X).
+      // - In 'bow_in' (Heading ~180° South): Port side of boat faces East (+X), Starboard side faces West (-X)!
+      // - In 'port_to' (Heading ~090° East alongside North Pier): Aft is West (-X), Forward is East (+X).
+      // - In 'stbd_to' (Heading ~270° West alongside North Pier): Aft is East (+X), Forward is West (-X).
+      if (activeDockOrient === "stern_in") {
+        simState.port_clearance_in = Math.max(0, minWestSlipM * 39.3701);
+        simState.stbd_clearance_in = Math.max(0, minEastSlipM * 39.3701);
+        let minSouthY = 999;
+        for (let i = 0; i < poly2.length; i++) minSouthY = Math.min(minSouthY, poly2[i].wy);
+        simState.stern_seawall_ft = Math.max(0, minSouthY * 3.28084);
+      } else if (activeDockOrient === "bow_in") {
+        simState.port_clearance_in = Math.max(0, minEastSlipM * 39.3701);
+        simState.stbd_clearance_in = Math.max(0, minWestSlipM * 39.3701);
+        let minSouthY = 999;
+        for (let i = 0; i < poly2.length; i++) minSouthY = Math.min(minSouthY, poly2[i].wy);
+        simState.stern_seawall_ft = Math.max(0, minSouthY * 3.28084);
+      } else if (activeDockOrient === "port_to") {
+        simState.port_clearance_in = Math.max(0, minWestPocketM * 39.3701); // Aft Yacht clearance
+        simState.stbd_clearance_in = Math.max(0, minEastPocketM * 39.3701); // Fwd Yacht clearance
+        let maxNorthY = -999;
+        for (let i = 0; i < poly2.length; i++) maxNorthY = Math.max(maxNorthY, poly2[i].wy);
+        simState.stern_seawall_ft = Math.max(0, (NORTH_PIER_Y_M - maxNorthY) * 3.28084);
+      } else {
+        simState.port_clearance_in = Math.max(0, minEastPocketM * 39.3701); // Aft Yacht clearance
+        simState.stbd_clearance_in = Math.max(0, minWestPocketM * 39.3701); // Fwd Yacht clearance
+        let maxNorthY = -999;
+        for (let i = 0; i < poly2.length; i++) maxNorthY = Math.max(maxNorthY, poly2[i].wy);
+        simState.stern_seawall_ft = Math.max(0, (NORTH_PIER_Y_M - maxNorthY) * 3.28084);
       }
-      simState.stern_seawall_ft = Math.max(0, minTransomY * 3.28084);
     }
 
     // =========================================================================
@@ -2031,9 +2497,9 @@
     const ctx = canvas.getContext("2d");
 
     let camMode = "chase"; // 'chase' | 'quarter' | 'overhead' | 'helm_aft'
-    let camOrbitYaw = 0.28;   // Radians offset
-    let camOrbitPitch = 0.52; // Elevation angle
-    let camDist = 26.0;
+    let camOrbitYaw = 0.32;   // Radians offset
+    let camOrbitPitch = 0.56; // Elevation angle
+    let camDist = 30.0;
     let helmGazeDeg = -135;   // Looking 135° Port Aft over shoulder
 
     const overlays = {
@@ -2070,22 +2536,27 @@
       const sub = document.getElementById("helmLookSubBar");
       if (mode === "helm_aft") {
         sub.classList.remove("hidden");
+        // Automatically look forward over the bow for Bow-In, or over the dockside quarter for Side-Tie!
+        if (activeDockOrient === "bow_in") helmGazeDeg = 0;
+        else if (activeDockOrient === "port_to") helmGazeDeg = -75;
+        else if (activeDockOrient === "stbd_to") helmGazeDeg = 75;
+        else helmGazeDeg = -135;
       } else {
         sub.classList.add("hidden");
       }
 
       if (mode === "chase") {
-        camOrbitYaw = 0.26;
-        camOrbitPitch = 0.52;
-        camDist = 25.0;
+        camOrbitYaw = activeDockOrient === "stbd_to" ? -0.32 : 0.32;
+        camOrbitPitch = 0.56;
+        camDist = 30.0;
       } else if (mode === "quarter") {
         camOrbitYaw = -0.65;
-        camOrbitPitch = 0.38;
-        camDist = 21.0;
+        camOrbitPitch = 0.42;
+        camDist = 24.0;
       } else if (mode === "overhead") {
         camOrbitYaw = 0.0;
         camOrbitPitch = 1.46;
-        camDist = 36.0;
+        camDist = 42.0;
       }
     }
 
@@ -2117,7 +2588,7 @@
     window.addEventListener("mouseup", () => { isOrbitDragging = false; });
     canvas.addEventListener("wheel", (e) => {
       e.preventDefault();
-      camDist = Math.max(12, Math.min(55, camDist + e.deltaY * 0.02));
+      camDist = Math.max(12, Math.min(62, camDist + e.deltaY * 0.02));
     }, { passive: false });
 
     // 3D Camera Matrix & Projection Helper
@@ -2132,7 +2603,7 @@
       const sinP = Math.sin(simState.psi_rad);
 
       if (camMode === "helm_aft") {
-        // 1st-Person Standing Helm Sightline (Looking over shoulder at transom corners & pilings at -28° pitch!)
+        // 1st-Person Standing Helm Sightline
         const eye = pkg.helm_eye_m;
         const wx = simState.x_m + eye.x * sinP + eye.y * cosP;
         const wy = simState.y_m + eye.x * cosP - eye.y * sinP;
@@ -2140,19 +2611,20 @@
         camPos = { x: wx, y: wy, z: wz };
 
         const lookYaw = simState.psi_rad + (helmGazeDeg * Math.PI) / 180;
-        const lookPitch = -0.36; // Downward -21° to -35° pitch to see transom corners, F425 cowlings, prop wash & pilings
+        const lookPitch = -0.34;
         camFwd = {
           x: Math.sin(lookYaw) * Math.cos(lookPitch),
           y: Math.cos(lookYaw) * Math.cos(lookPitch),
           z: Math.sin(lookPitch)
         };
       } else {
-        // Elevated 3rd-Person 3D Marina View
-        const targetX = simState.x_m * 0.65;
-        const targetY = Math.min(22, Math.max(8, simState.y_m * 0.72));
+        // Elevated 3rd-Person 3D Marina View (smoothly blends between active boat in fairway and target berth at X = 0)
+        const berthTargetY = (activeDockOrient === "port_to" || activeDockOrient === "stbd_to") ? 26.5 : 15.5;
+        const targetX = simState.x_m * 0.55;
+        const targetY = simState.y_m * 0.55 + berthTargetY * 0.45;
         const targetZ = 0.8;
 
-        const scaleDist = camDist * (pkg.id === "cruiser-52-2023" ? 1.18 : 1.0);
+        const scaleDist = camDist * (pkg.id === "cruiser-52-2023" ? 1.15 : 1.0);
         const horizDist = scaleDist * Math.cos(camOrbitPitch);
         const vertDist = scaleDist * Math.sin(camOrbitPitch);
 
@@ -2184,7 +2656,7 @@
         z: camRight.x * camFwd.y - camRight.y * camFwd.x
       };
 
-      focalLen = Math.min(W, H) * (camMode === "helm_aft" ? 0.92 : 1.08);
+      focalLen = Math.min(W, H) * (camMode === "helm_aft" ? 0.92 : 1.06);
     }
 
     function project3D(wx, wy, wz, W, H) {
@@ -2340,7 +2812,6 @@
       const hL = 7.8;              // 52 ft LOA
       const hB = 2.3;              // 15.2 ft beam
 
-      // Hull lower box
       const deckPts = [
         { x: nx - hB, y: ny - hL, z: 1.65 },
         { x: nx + hB, y: ny - hL, z: 1.65 },
@@ -2356,22 +2827,10 @@
         { x: nx - hB * 0.85, y: ny + hL * 0.65, z: 0.0 }
       ];
 
-      // Starboard Hull Wall (facing our slip)
-      drawPoly3D(
-        [wlPts[1], wlPts[2], deckPts[2], deckPts[1]],
-        "rgba(30, 41, 59, 0.92)",
-        "rgba(148, 163, 184, 0.45)",
-        1.5
-      );
-      drawPoly3D(
-        [wlPts[2], wlPts[3], deckPts[3], deckPts[2]],
-        "rgba(39, 52, 73, 0.92)",
-        "rgba(148, 163, 184, 0.45)",
-        1.5
-      );
+      drawPoly3D([wlPts[1], wlPts[2], deckPts[2], deckPts[1]], "rgba(30, 41, 59, 0.92)", "rgba(148, 163, 184, 0.45)", 1.5);
+      drawPoly3D([wlPts[2], wlPts[3], deckPts[3], deckPts[2]], "rgba(39, 52, 73, 0.92)", "rgba(148, 163, 184, 0.45)", 1.5);
       drawPoly3D(deckPts, "rgba(51, 65, 85, 0.9)", "rgba(203, 213, 225, 0.5)", 1.5);
 
-      // Tall Enclosed Flybridge Superstructure (casts the wind shadow!)
       const fbBase = [
         { x: nx - hB * 0.78, y: ny - hL * 0.55, z: 1.7 },
         { x: nx + hB * 0.78, y: ny - hL * 0.55, z: 1.7 },
@@ -2388,7 +2847,6 @@
       drawPoly3D([fbBase[2], fbBase[3], fbTop[3], fbTop[2]], "rgba(51, 65, 85, 0.85)", "#94a3b8", 1.2);
       drawPoly3D(fbTop, "rgba(100, 116, 139, 0.9)", "#cbd5e1", 1.5);
 
-      // Label above the 52' Neighbor Yacht
       const W = canvas.width, H = canvas.height;
       const lblPt = project3D(nx, ny, 4.4, W, H);
       if (lblPt) {
@@ -2396,6 +2854,132 @@
         ctx.fillStyle = "rgba(245, 158, 11, 0.92)";
         ctx.textAlign = "center";
         ctx.fillText("52' Windward Neighbor Yacht (Casts Slip Wind-Shadow Lee)", lblPt.x, lblPt.y);
+      }
+    }
+
+    // Draw Additional Moored Marina Yachts (South Slip Row & North Side-Tie Fuel Pocket Flanking Yachts)
+    function drawMooredMarinaYacht3D(cx, cy, psiRad, loaM, beamM, hullFill, deckFill, labelText) {
+      const hL = loaM * 0.5;
+      const hB = beamM * 0.5;
+      const cosP = Math.cos(psiRad), sinP = Math.sin(psiRad);
+      function toW(lx, ly, lz) {
+        return { x: cx + lx * sinP + ly * cosP, y: cy + lx * cosP - ly * sinP, z: lz };
+      }
+      const contour = [
+        { x: -hL,      y: -hB * 0.85, z: 1.25 },
+        { x:  hL * 0.5, y: -hB,       z: 1.40 },
+        { x:  hL,      y:  0,         z: 1.55 },
+        { x:  hL * 0.5, y:  hB,       z: 1.40 },
+        { x: -hL,      y:  hB * 0.85, z: 1.25 }
+      ];
+      const deckW = contour.map(p => toW(p.x, p.y, p.z));
+      const wlW = contour.map(p => toW(p.x * 0.96, p.y * 0.92, 0.0));
+      for (let i = 0; i < contour.length; i++) {
+        const nxt = (i + 1) % contour.length;
+        drawPoly3D([wlW[i], wlW[nxt], deckW[nxt], deckW[i]], hullFill, "rgba(148, 163, 184, 0.4)", 1.2);
+      }
+      drawPoly3D(deckW, deckFill, "rgba(203, 213, 225, 0.45)", 1.3);
+
+      // Cabin house
+      const cab = [
+        toW(-hL * 0.45, -hB * 0.65, 2.35),
+        toW( hL * 0.25, -hB * 0.58, 2.35),
+        toW( hL * 0.25,  hB * 0.58, 2.35),
+        toW(-hL * 0.45,  hB * 0.65, 2.35)
+      ];
+      drawPoly3D(cab, "rgba(71, 85, 105, 0.88)", "rgba(203, 213, 225, 0.5)", 1.2);
+
+      if (labelText) {
+        const W = canvas.width, H = canvas.height;
+        const lp = project3D(cx, cy, 3.0, W, H);
+        if (lp) {
+          ctx.font = "bold 9.5px 'Inter', sans-serif";
+          ctx.fillStyle = "rgba(148, 163, 184, 0.85)";
+          ctx.textAlign = "center";
+          ctx.fillText(labelText, lp.x, lp.y);
+        }
+      }
+    }
+
+    // Draw 3D Fairway-to-Berth Approach Corridor, Turn/Pivot Zone & Target Berth Box on the Water
+    function drawFairwayApproachGuide3D(pkg) {
+      const W = canvas.width, H = canvas.height;
+      const halfSlipM = (pkg.slip_width_ft * 0.3048) / 2;
+      const halfPocketM = pkg.loa_m * 0.5 + 2.3;
+
+      if (activeDockOrient === "stern_in") {
+        // Fairway Eastbound Cruise Line -> Fairway 90° Pivot Circle -> Stern-In Slip Box
+        const fwyY = SLIP_LENGTH_M + pkg.loa_m * 0.55 + 4.2;
+        drawLine3D({ x: -21, y: fwyY, z: 0.05 }, { x: -1.5, y: fwyY, z: 0.05 }, "rgba(56, 189, 248, 0.55)", 2.5, [8, 6]);
+        drawLine3D({ x: 0, y: fwyY, z: 0.05 }, { x: 0, y: 1.5, z: 0.05 }, "rgba(16, 185, 129, 0.65)", 2.5, [6, 5]);
+
+        // Target Berth Box inside South Slip
+        drawPoly3D([
+          { x: -halfSlipM + 0.3, y: 1.2, z: 0.04 },
+          { x:  halfSlipM - 0.3, y: 1.2, z: 0.04 },
+          { x:  halfSlipM - 0.3, y: SLIP_LENGTH_M - 0.5, z: 0.04 },
+          { x: -halfSlipM + 0.3, y: SLIP_LENGTH_M - 0.5, z: 0.04 }
+        ], "rgba(16, 185, 129, 0.10)", "rgba(16, 185, 129, 0.65)", 1.8);
+
+        const pivLbl = project3D(-1.0, fwyY + 1.2, 0.3, W, H);
+        if (pivLbl) {
+          ctx.font = "bold 10px 'JetBrains Mono', monospace";
+          ctx.fillStyle = "#38bdf8";
+          ctx.textAlign = "center";
+          ctx.fillText("↺ FAIRWAY 90° PIVOT ZONE (STOP & BACK STERN-IN)", pivLbl.x, pivLbl.y);
+        }
+      } else if (activeDockOrient === "bow_in") {
+        // Fairway Eastbound Cruise Line -> 90° Starboard Turn Arc -> Bow-In Slip Box
+        const fwyY = SLIP_LENGTH_M + pkg.loa_m * 0.65 + 5.2;
+        drawLine3D({ x: -22, y: fwyY, z: 0.05 }, { x: -5.5, y: fwyY, z: 0.05 }, "rgba(56, 189, 248, 0.55)", 2.5, [8, 6]);
+        drawLine3D({ x: -5.5, y: fwyY, z: 0.05 }, { x: 0, y: SLIP_LENGTH_M + 1.5, z: 0.05 }, "rgba(56, 189, 248, 0.55)", 2.5, [6, 5]);
+        drawLine3D({ x: 0, y: SLIP_LENGTH_M + 1.5, z: 0.05 }, { x: 0, y: 1.5, z: 0.05 }, "rgba(16, 185, 129, 0.65)", 2.5, [6, 5]);
+
+        drawPoly3D([
+          { x: -halfSlipM + 0.3, y: 1.2, z: 0.04 },
+          { x:  halfSlipM - 0.3, y: 1.2, z: 0.04 },
+          { x:  halfSlipM - 0.3, y: SLIP_LENGTH_M - 0.5, z: 0.04 },
+          { x: -halfSlipM + 0.3, y: SLIP_LENGTH_M - 0.5, z: 0.04 }
+        ], "rgba(16, 185, 129, 0.10)", "rgba(16, 185, 129, 0.65)", 1.8);
+
+        const turnLbl = project3D(-4.5, fwyY + 1.0, 0.3, W, H);
+        if (turnLbl) {
+          ctx.font = "bold 10px 'JetBrains Mono', monospace";
+          ctx.fillStyle = "#38bdf8";
+          ctx.textAlign = "center";
+          ctx.fillText("↻ 90° BOW-IN TURN POINT (CLEAR WEATHER PILING)", turnLbl.x, turnLbl.y);
+        }
+      } else if (activeDockOrient === "port_to" || activeDockOrient === "stbd_to") {
+        // Fairway Approach Line into North Side-Tie Fuel Dock Pocket
+        const isPort = activeDockOrient === "port_to";
+        const dockY = NORTH_PIER_Y_M - pkg.beam_m * 0.5 - 0.55;
+        const startX = isPort ? -20.0 : 20.0;
+        const midX = isPort ? -8.5 : 8.5;
+
+        drawLine3D({ x: startX, y: 24.5, z: 0.05 }, { x: midX, y: 26.2, z: 0.05 }, "rgba(56, 189, 248, 0.55)", 2.5, [8, 6]);
+        drawLine3D({ x: midX, y: 26.2, z: 0.05 }, { x: 0, y: dockY, z: 0.05 }, "rgba(16, 185, 129, 0.70)", 2.5, [6, 5]);
+
+        // Highlight North Side-Tie Fuel Pocket Box
+        drawPoly3D([
+          { x: -halfPocketM + 0.6, y: NORTH_PIER_Y_M - pkg.beam_m - 1.1, z: 0.04 },
+          { x:  halfPocketM - 0.6, y: NORTH_PIER_Y_M - pkg.beam_m - 1.1, z: 0.04 },
+          { x:  halfPocketM - 0.6, y: NORTH_PIER_Y_M - 0.25,             z: 0.04 },
+          { x: -halfPocketM + 0.6, y: NORTH_PIER_Y_M - 0.25,             z: 0.04 }
+        ], "rgba(16, 185, 129, 0.12)", "rgba(16, 185, 129, 0.75)", 1.8);
+
+        const pocketLbl = project3D(0, NORTH_PIER_Y_M - pkg.beam_m - 1.6, 0.3, W, H);
+        if (pocketLbl) {
+          ctx.font = "bold 10px 'JetBrains Mono', monospace";
+          ctx.fillStyle = "#34d399";
+          ctx.textAlign = "center";
+          ctx.fillText(
+            isPort
+              ? "◀ TARGET FUEL POCKET: PORT-SIDE-TO (BLIND SIDE ALONGSIDE)"
+              : "▶ TARGET FUEL POCKET: STARBOARD-SIDE-TO (HELM SIDE ALONGSIDE)",
+            pocketLbl.x,
+            pocketLbl.y
+          );
+        }
       }
     }
 
@@ -2567,6 +3151,9 @@
     function drawCoachingOverlays3D(pkg) {
       const W = canvas.width, H = canvas.height;
 
+      // 0. Fairway-to-Berth Approach Corridor & Turn/Pivot Zone
+      drawFairwayApproachGuide3D(pkg);
+
       // 1. Ghost Track History Ribbon
       if (overlays.ghostTrack && ghostTrack.length > 1) {
         ctx.save();
@@ -2680,35 +3267,37 @@
       ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, W, H);
 
-      // 1. Draw GPYC Marina Basin Water Micro-Ripple Grid (Critical for judging 0.5-1.5 kt motion!)
-      for (let gx = -24; gx <= 24; gx += 3) {
-        drawLine3D({ x: gx, y: 0, z: 0 }, { x: gx, y: 42, z: 0 }, "rgba(56, 189, 248, 0.07)", 1);
+      // 1. Draw GPYC Marina Basin Water Micro-Ripple Grid across Full Fairway (-28m to +28m)
+      for (let gx = -27; gx <= 27; gx += 3) {
+        drawLine3D({ x: gx, y: 0, z: 0 }, { x: gx, y: 38, z: 0 }, "rgba(56, 189, 248, 0.07)", 1);
       }
-      for (let gy = 0; gy <= 42; gy += 3) {
-        drawLine3D({ x: -24, y: gy, z: 0 }, { x: 24, y: gy, z: 0 }, "rgba(56, 189, 248, 0.07)", 1);
+      for (let gy = 0; gy <= 38; gy += 3) {
+        drawLine3D({ x: -27, y: gy, z: 0 }, { x: 27, y: gy, z: 0 }, "rgba(56, 189, 248, 0.07)", 1);
       }
 
-      // 2. Target GPYC Slip Centerline Landing Guide
       const halfSlipM = (pkg.slip_width_ft * 0.3048) / 2;
-      drawLine3D({ x: 0, y: 0.5, z: 0.03 }, { x: 0, y: SLIP_LENGTH_M + 14, z: 0.03 }, "rgba(16, 185, 129, 0.35)", 2, [6, 6]);
-
-      // 3. Main Concrete Dock Seawall (Y = -2.2m to Y = 0m) & Finger Piers
+      const halfPocketM = pkg.loa_m * 0.5 + 2.3;
       const dockZ = 1.05; // 3.5 ft above Lake St. Clair datum
+      const fingerW = 0.78;
+      const nx52 = -halfSlipM - 4.1;
+      const nxWest36 = nx52 - 5.8;
+      const nxEast40 = halfSlipM + 4.8;
+
+      // 2. SOUTH MARINA ROW: Main Concrete Seawall (Y = -2.5m to 0m) & Multi-Slip Finger Piers
       drawPoly3D([
-        { x: -18, y: -2.5, z: dockZ },
-        { x:  18, y: -2.5, z: dockZ },
-        { x:  18, y:  0.0, z: dockZ },
-        { x: -18, y:  0.0, z: dockZ }
+        { x: -28, y: -2.5, z: dockZ },
+        { x:  28, y: -2.5, z: dockZ },
+        { x:  28, y:  0.0, z: dockZ },
+        { x: -28, y:  0.0, z: dockZ }
       ], "#273240", "#475569", 1.5);
       drawPoly3D([
-        { x: -18, y: 0.0, z: 0.0 },
-        { x:  18, y: 0.0, z: 0.0 },
-        { x:  18, y: 0.0, z: dockZ },
-        { x: -18, y: 0.0, z: dockZ }
+        { x: -28, y: 0.0, z: 0.0 },
+        { x:  28, y: 0.0, z: 0.0 },
+        { x:  28, y: 0.0, z: dockZ },
+        { x: -28, y: 0.0, z: dockZ }
       ], "#1e293b", "#64748b", 1.5);
 
-      // Port & Starboard Finger Walkways
-      const fingerW = 0.75;
+      // Target Slip West & East Finger Walkways
       drawPoly3D([
         { x: -halfSlipM - fingerW, y: 0, z: dockZ },
         { x: -halfSlipM,           y: 0, z: dockZ },
@@ -2722,43 +3311,101 @@
         { x: halfSlipM,           y: SLIP_LENGTH_M, z: dockZ }
       ], "#334155", "#64748b", 1.2);
 
-      // 4. Neighboring 52-Ft Yacht to Windward (West -X)
+      // Adjacent Slip Finger Piers (West Neighbor & East Neighbor)
+      drawPoly3D([
+        { x: nx52 - 2.65 - fingerW, y: 0, z: dockZ },
+        { x: nx52 - 2.65,           y: 0, z: dockZ },
+        { x: nx52 - 2.65,           y: SLIP_LENGTH_M, z: dockZ },
+        { x: nx52 - 2.65 - fingerW, y: SLIP_LENGTH_M, z: dockZ }
+      ], "#293548", "#475569", 1.0);
+      drawPoly3D([
+        { x: nxEast40 + 2.40,           y: 0, z: dockZ },
+        { x: nxEast40 + 2.40 + fingerW, y: 0, z: dockZ },
+        { x: nxEast40 + 2.40 + fingerW, y: SLIP_LENGTH_M, z: dockZ },
+        { x: nxEast40 + 2.40,           y: SLIP_LENGTH_M, z: dockZ }
+      ], "#293548", "#475569", 1.0);
+
+      // 3. NORTH SIDE-TIE T-HEAD PIER & FUEL DOCK POCKET (Y = 34.0m to 36.6m)
+      drawPoly3D([
+        { x: -28, y: NORTH_PIER_Y_M,       z: dockZ },
+        { x:  28, y: NORTH_PIER_Y_M,       z: dockZ },
+        { x:  28, y: NORTH_PIER_Y_M + 2.6, z: dockZ },
+        { x: -28, y: NORTH_PIER_Y_M + 2.6, z: dockZ }
+      ], "#273240", "#475569", 1.5);
+      drawPoly3D([
+        { x: -28, y: NORTH_PIER_Y_M, z: 0.0 },
+        { x:  28, y: NORTH_PIER_Y_M, z: 0.0 },
+        { x:  28, y: NORTH_PIER_Y_M, z: dockZ },
+        { x: -28, y: NORTH_PIER_Y_M, z: dockZ }
+      ], "#1e293b", "#64748b", 1.5);
+
+      // 3D Red Gas & Green Diesel Fuel Dispensers on the North Fuel Pier (X = -1.2m and +1.2m)
+      [-1.2, 1.2].forEach((fx, idx) => {
+        const pCol = idx === 0 ? "#dc2626" : "#16a34a";
+        drawPoly3D([
+          { x: fx - 0.35, y: NORTH_PIER_Y_M + 0.4, z: dockZ },
+          { x: fx + 0.35, y: NORTH_PIER_Y_M + 0.4, z: dockZ },
+          { x: fx + 0.35, y: NORTH_PIER_Y_M + 0.4, z: dockZ + 1.45 },
+          { x: fx - 0.35, y: NORTH_PIER_Y_M + 0.4, z: dockZ + 1.45 }
+        ], pCol, "#f8fafc", 1.2);
+      });
+
+      // 4. Draw All Moored Marina Neighbor Yachts (South Row & North Side-Tie Flanking Yachts)
       drawNeighbor52Yacht3D(halfSlipM);
+      drawMooredMarinaYacht3D(nxWest36, 6.2, 0.0, 11.0, 3.4, "#1e293b", "#cbd5e1", "36' Moored Cruiser");
+      drawMooredMarinaYacht3D(nxEast40, 6.6, Math.PI, 12.2, 3.8, "#172554", "#e2e8f0", "40' Moored Sportfish");
+      // North Side-Tie Fuel Pocket Flanking 42' Moored Yachts
+      drawMooredMarinaYacht3D(-halfPocketM - 6.6, NORTH_PIER_Y_M - 2.1, Math.PI * 0.5, 12.6, 3.8, "#1e293b", "#e2e8f0", "42' West Fuel Dock Yacht");
+      drawMooredMarinaYacht3D( halfPocketM + 6.6, NORTH_PIER_Y_M - 2.1, Math.PI * 0.5, 12.6, 3.8, "#312e81", "#e2e8f0", "42' East Fuel Dock Yacht");
 
       // 5. Coaching Overlays & Prop-Wash Plumes
       drawCoachingOverlays3D(pkg);
       drawPropWashAndThrusterPlumes3D(pkg);
 
-      // 6. Active 3D Boat Hull (or 1st-Person Cockpit Transom Framing)
+      // 6. Active 3D Boat Hull
       drawActiveBoat3D(pkg);
 
-      // 7. All 4 GPYC Slip Timber Pilings with Real-Time Inch-Accurate Clearance Badges
-      const portBadgeCol = simState.port_clearance_in < 6 ? "#f43f5e" : (simState.port_clearance_in < 14 ? "#f59e0b" : "#34d399");
-      const stbdBadgeCol = simState.stbd_clearance_in < 6 ? "#f43f5e" : (simState.stbd_clearance_in < 14 ? "#f59e0b" : "#34d399");
+      // 7. Draw All Marina Timber Pilings with Real-Time Inch-Accurate Clearance Badges on the Active Berth
+      const isSideTie = activeDockOrient === "port_to" || activeDockOrient === "stbd_to";
+      const leftIn = Math.max(0, simState.port_clearance_in);
+      const rightIn = Math.max(0, simState.stbd_clearance_in);
+      const leftCol = leftIn < 6 ? "#f43f5e" : (leftIn < 14 ? "#f59e0b" : "#34d399");
+      const rightCol = rightIn < 6 ? "#f43f5e" : (rightIn < 14 ? "#f59e0b" : "#34d399");
 
-      // Inner Seawall Corner Pilings (Y = 0.8 m)
-      drawTimberPiling3D(-halfSlipM, 0.8, 0.18, 2.2, null, null, "port_inner");
-      drawTimberPiling3D( halfSlipM, 0.8, 0.18, 2.2, null, null, "stbd_inner");
+      // Inner Seawall Corner Pilings & Neighbor Slip Outer Pilings
+      drawTimberPiling3D(-halfSlipM, 0.8, 0.18, 2.2, null, null, "west_inner");
+      drawTimberPiling3D( halfSlipM, 0.8, 0.18, 2.2, null, null, "east_inner");
+      drawTimberPiling3D(nx52 - 2.65, SLIP_LENGTH_M, 0.20, 2.3, null, null, "far_west_piling");
+      drawTimberPiling3D(nxWest36 - 2.2, SLIP_LENGTH_M, 0.20, 2.3, null, null, "far_west2_pil");
+      drawTimberPiling3D(nxEast40 + 2.4, SLIP_LENGTH_M, 0.20, 2.3, null, null, "far_east_piling");
 
-      // Outer Slip Entrance Pilings (Y = SLIP_LENGTH_M = 13.72 m / 45 ft)
-      drawTimberPiling3D(
-        -halfSlipM,
-        SLIP_LENGTH_M,
-        0.22,
-        2.5,
-        `PORT: ${Math.max(0, simState.port_clearance_in).toFixed(1)}"`,
-        portBadgeCol,
-        "port_outer"
-      );
-      drawTimberPiling3D(
-        halfSlipM,
-        SLIP_LENGTH_M,
-        0.22,
-        2.5,
-        `STBD: ${Math.max(0, simState.stbd_clearance_in).toFixed(1)}"`,
-        stbdBadgeCol,
-        "stbd_outer"
-      );
+      // Target South Finger Slip Entrance Pilings (Show PORT/STBD clearance badges when in Stern-In or Bow-In mode!)
+      const westSlipBadge = !isSideTie
+        ? (activeDockOrient === "stern_in" ? `PORT: ${leftIn.toFixed(1)}"` : `STBD: ${rightIn.toFixed(1)}"`)
+        : null;
+      const westSlipCol = activeDockOrient === "stern_in" ? leftCol : rightCol;
+
+      const eastSlipBadge = !isSideTie
+        ? (activeDockOrient === "stern_in" ? `STBD: ${rightIn.toFixed(1)}"` : `PORT: ${leftIn.toFixed(1)}"`)
+        : null;
+      const eastSlipCol = activeDockOrient === "stern_in" ? rightCol : leftCol;
+
+      drawTimberPiling3D(-halfSlipM, SLIP_LENGTH_M, 0.22, 2.5, westSlipBadge, westSlipCol, "west_outer");
+      drawTimberPiling3D( halfSlipM, SLIP_LENGTH_M, 0.22, 2.5, eastSlipBadge, eastSlipCol, "east_outer");
+
+      // North Side-Tie Fuel Pocket Corner Pilings (Show AFT/FWD clearance badges when in Port-Side-To or Starboard-Side-To mode!)
+      const westPocketBadge = isSideTie
+        ? (activeDockOrient === "port_to" ? `AFT: ${leftIn.toFixed(1)}"` : `FWD: ${rightIn.toFixed(1)}"`)
+        : null;
+      const westPocketCol = activeDockOrient === "port_to" ? leftCol : rightCol;
+
+      const eastPocketBadge = isSideTie
+        ? (activeDockOrient === "port_to" ? `FWD: ${rightIn.toFixed(1)}"` : `AFT: ${leftIn.toFixed(1)}"`)
+        : null;
+      const eastPocketCol = activeDockOrient === "port_to" ? rightCol : leftCol;
+
+      drawTimberPiling3D(-halfPocketM, NORTH_PIER_Y_M - 0.25, 0.22, 2.5, westPocketBadge, westPocketCol, "pocket_west_pil");
+      drawTimberPiling3D( halfPocketM, NORTH_PIER_Y_M - 0.25, 0.22, 2.5, eastPocketBadge, eastPocketCol, "pocket_east_pil");
 
       // 8. Draw 3D Impact Shockwave Ring, Rebound Force Vector & Pivot Callout at Exact Collision Point!
       if (simState.impact_timer_s > 0) {
@@ -2766,7 +3413,6 @@
         const phase = 1.0 - (simState.impact_timer_s / 2.4);
         const impScr = project3D(simState.impact_world_x, simState.impact_world_y, 0.9, W, H);
 
-        // 3D Rebound Force Vector Arrow showing the direction the piling/pier kicked the hull
         const arrowTip = {
           x: simState.impact_world_x + simState.impact_nx * 2.8,
           y: simState.impact_world_y + simState.impact_ny * 2.8,
@@ -2780,7 +3426,6 @@
         );
 
         if (impScr) {
-          // Expanding 3D Impact Shockwave Rings
           const r1 = 10 + phase * 38;
           const r2 = 6 + phase * 22;
           ctx.save();
@@ -2795,7 +3440,6 @@
           ctx.arc(impScr.x, impScr.y, r2 * 0.45, 0, Math.PI * 2);
           ctx.fill();
 
-          // Floating 3D Impact Telemetry Callout
           const yawTxt = Math.abs(simState.impact_yaw_kick_degps) > 0.5
             ? ` · Pivot ${simState.impact_yaw_kick_degps > 0 ? "↻" : "↺"}${Math.abs(simState.impact_yaw_kick_degps).toFixed(1)}°/s`
             : "";
@@ -2831,6 +3475,9 @@
       const sogMps = Math.hypot(simState.u_mps, simState.v_mps);
       const sogKts = sogMps * 1.94384;
       const surgeFps = simState.u_mps * 3.28084;
+
+      const phaseEl = document.getElementById("hudPhaseText");
+      if (phaseEl) phaseEl.textContent = simState.maneuver_stage;
 
       document.getElementById("hudSog").textContent = `${sogKts.toFixed(2)} kt`;
       document.getElementById("hudSurgeDir").textContent =
