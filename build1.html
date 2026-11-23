@@ -1,0 +1,2560 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MoorPrepared Build 1 — 3D Behavioral Close-Quarters Simulator Testbed (50 Hz 3-DOF+)</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    :root {
+      --bg-deep: #090e14;
+      --bg-panel: #111822;
+      --bg-card: #17212e;
+      --border-muted: rgba(203, 213, 225, 0.14);
+      --accent-cyan: #38bdf8;
+      --accent-amber: #f59e0b;
+      --accent-emerald: #10b981;
+      --accent-rose: #f43f5e;
+    }
+    * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg-deep);
+      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+    }
+    .mono {
+      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-variant-numeric: tabular-nums;
+    }
+    /* Custom Sliders for Binnacles & Helm */
+    input[type="range"].helm-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      background: #0b1118;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 6px;
+      height: 10px;
+      cursor: pointer;
+    }
+    input[type="range"].helm-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #38bdf8;
+      border: 2px solid #0f172a;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+      cursor: grab;
+    }
+    input[type="range"].helm-slider:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+    .locked-overlay {
+      background: repeating-linear-gradient(
+        -45deg,
+        rgba(15, 23, 42, 0.85),
+        rgba(15, 23, 42, 0.85) 8px,
+        rgba(30, 41, 59, 0.85) 8px,
+        rgba(30, 41, 59, 0.85) 16px
+      );
+    }
+  </style>
+</head>
+<body class="flex flex-col h-screen w-screen bg-[#090e14] text-slate-100 select-none overflow-hidden">
+
+  <!-- =========================================================================
+       TOP BAR: VESSEL SELECTOR (3 EXTREME PACKAGES), SCENARIOS & GOLF SIM REWIND
+       ========================================================================= -->
+  <header class="flex items-center justify-between px-3 py-2 bg-[#101722] border-b border-slate-800/90 z-20 shrink-0 gap-2 flex-wrap">
+    <!-- Brand + Build Badge -->
+    <div class="flex items-center gap-2.5">
+      <div class="w-7 h-7 rounded-md bg-amber-500/15 border border-amber-400/40 flex items-center justify-center text-amber-300 font-extrabold text-xs tracking-wider shadow-inner">
+        MP
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="font-bold text-sm tracking-tight text-white">MoorPrepared</span>
+          <span class="text-[10px] mono uppercase px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-400/30 font-semibold">Build 1 · 50Hz 3-DOF+</span>
+          <span id="gamepadBadge" class="text-[10px] mono uppercase px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-medium">Gamepad: Standby</span>
+        </div>
+        <div class="text-[10px] text-slate-400 hidden sm:block">Grosse Pointe Yacht Club (GPYC) East Basin · Elevated 3D Perspective &amp; Sightline Testbed</div>
+      </div>
+    </div>
+
+    <!-- 3 Extreme Boat Package Switcher -->
+    <div class="flex items-center gap-1 bg-[#0b1018] p-1 rounded-lg border border-slate-800">
+      <button id="btnBoatIo25" onclick="selectBoatPackage('sterndrive-25-2023')" class="boat-tab px-2.5 py-1 rounded text-left transition-all border border-transparent hover:bg-slate-800/60">
+        <div class="text-[11px] font-bold text-slate-200 leading-tight">1. 25' Single I/O Runabout</div>
+        <div class="text-[9.5px] mono text-slate-400">5,850 lb · 8'6" · 12' Slip · Wheel+1-Lever</div>
+      </button>
+      <button id="btnBoatS358" onclick="selectBoatPackage('pursuit-s358-2023')" class="boat-tab px-2.5 py-1 rounded text-left transition-all bg-sky-500/20 border border-sky-400/50 shadow-sm">
+        <div class="text-[11px] font-bold text-white leading-tight">2. 35' Pursuit S 358 (Ref)</div>
+        <div class="text-[9.5px] mono text-sky-300">18,800 lb · 11'4" · 15' Slip · Twin F425+Thr+Joy</div>
+      </button>
+      <button id="btnBoatCruiser52" onclick="selectBoatPackage('cruiser-52-2023')" class="boat-tab px-2.5 py-1 rounded text-left transition-all border border-transparent hover:bg-slate-800/60">
+        <div class="text-[11px] font-bold text-slate-200 leading-tight">3. 52' Twin-Inboard Cruiser</div>
+        <div class="text-[9.5px] mono text-amber-300/90">48,500 lb · 15'6" · 18' Slip · Fixed-Shaft+Rudders</div>
+      </button>
+    </div>
+
+    <!-- Scenario Presets + Golf Sim 15s Instant Rewind -->
+    <div class="flex items-center gap-1.5">
+      <select id="scenarioSelect" onchange="loadScenario(this.value)" class="bg-[#0b1018] text-xs font-semibold text-slate-200 border border-slate-700 rounded-md px-2.5 py-1.5 focus:outline-none focus:border-sky-400">
+        <option value="CB-01" selected>CB-01: GPYC Wind-Shadow Trap (16 kt Crosswind + 52' Neighbor Yacht Lee)</option>
+        <option value="CB-02">CB-02: Mid-Pivot 22-kt Lake St. Clair Gust Stall</option>
+        <option value="CB-03">CB-03: 20-kt Beam Wind HMEX Joystick Saturation Test</option>
+        <option value="TC-SANDBOX">TC-01..08: Open-Water &amp; Slip Calibration Sandbox (0–25 kt)</option>
+      </select>
+
+      <button id="btnRewind15" onclick="triggerGolfSimRewind(15)" title="Instant 15-Second Rewind (Shortcut: R)" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition">
+        <span>⏪ Rewind 15s</span>
+        <span class="text-[10px] mono bg-slate-950/20 px-1 rounded">[R]</span>
+      </button>
+
+      <button onclick="resetScenario()" title="Reset Scenario to Start (Shortcut: Esc)" class="px-2.5 py-1.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs transition">
+        ↺ Reset
+      </button>
+    </div>
+  </header>
+
+  <!-- =========================================================================
+       MAIN 3D VIEWPORT + FLOATING TELEMETRY, CAMERA & COACHING OVERLAYS
+       ========================================================================= -->
+  <main class="relative flex-1 w-full overflow-hidden bg-[#07131d]">
+    <!-- Self-Contained 60 FPS 3D Perspective Canvas -->
+    <canvas id="sim3dCanvas" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
+
+    <!-- LEFT FLOATING HUD: LIVE VESSEL PHYSICS & PILING CLEARANCE TELEMETRY -->
+    <div class="absolute top-3 left-3 w-80 bg-[#0d1520]/90 backdrop-blur-md border border-slate-700/70 rounded-xl p-3 shadow-2xl pointer-events-auto">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-2">
+        <div>
+          <div id="hudBoatTitle" class="text-xs font-extrabold text-white tracking-tight">2023 Pursuit S 358 Sport</div>
+          <div id="hudBoatSpecs" class="text-[10px] mono text-sky-300">37'4" × 11'4" · 18,800 lbs · 15'0" GPYC Slip</div>
+        </div>
+        <span id="hudFpsBadge" class="text-[10px] mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold">60 FPS · 50Hz</span>
+      </div>
+
+      <!-- Primary Kinematic Readouts -->
+      <div class="grid grid-cols-3 gap-1.5 mb-2 text-center">
+        <div class="bg-[#090f17] border border-slate-800/90 rounded-lg p-1.5">
+          <div class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">Speed (SOG)</div>
+          <div id="hudSog" class="text-sm font-extrabold mono text-white">0.00 kt</div>
+          <div id="hudSurgeDir" class="text-[9.5px] mono text-slate-400">0.0 ft/s</div>
+        </div>
+        <div class="bg-[#090f17] border border-slate-800/90 rounded-lg p-1.5">
+          <div class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">HDG vs COG</div>
+          <div id="hudHdg" class="text-sm font-extrabold mono text-sky-300">180°</div>
+          <div id="hudCrab" class="text-[9.5px] mono text-amber-300">Crab: 0.0°</div>
+        </div>
+        <div class="bg-[#090f17] border border-slate-800/90 rounded-lg p-1.5">
+          <div class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">Yaw Rate</div>
+          <div id="hudYawRate" class="text-sm font-extrabold mono text-white">0.0°/s</div>
+          <div id="hudPivotPos" class="text-[9.5px] mono text-emerald-300">Pivot: -0.2m</div>
+        </div>
+      </div>
+
+      <!-- Real-Time Inch-Accurate Piling Clearances -->
+      <div class="bg-[#090f17] border border-slate-800 rounded-lg p-2 mb-2">
+        <div class="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+          <span>GPYC Slip Piling Clearance</span>
+          <span id="hudSlipWidthTag" class="mono text-sky-300">15'0" Slip (22" Nominal)</span>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div id="cardPortClearance" class="flex items-center justify-between px-2 py-1 rounded bg-slate-900/90 border border-slate-800">
+            <span class="text-[10px] font-bold text-rose-300">PORT PILING</span>
+            <span id="hudPortClearance" class="text-xs font-extrabold mono text-emerald-300">22.0 in</span>
+          </div>
+          <div id="cardStbdClearance" class="flex items-center justify-between px-2 py-1 rounded bg-slate-900/90 border border-slate-800">
+            <span class="text-[10px] font-bold text-emerald-300">STBD PILING</span>
+            <span id="hudStbdClearance" class="text-xs font-extrabold mono text-emerald-300">22.0 in</span>
+          </div>
+        </div>
+        <div class="flex items-center justify-between mt-1.5 pt-1 border-t border-slate-800/80 text-[10px] mono">
+          <span class="text-slate-400">Transom to Main Seawall:</span>
+          <span id="hudSternDist" class="font-bold text-white">34.2 ft</span>
+        </div>
+      </div>
+
+      <!-- Live Wind Shear & Bow/Stern Split Force Monitor (CB-01) -->
+      <div class="bg-[#090f17] border border-slate-800 rounded-lg p-2">
+        <div class="flex items-center justify-between text-[10px] mb-1">
+          <span class="font-bold uppercase tracking-wider text-amber-300">Wind &amp; 52' Yacht Lee Shadow</span>
+          <span id="hudWindBase" class="mono font-bold text-white">16.0 kt @ 270°</span>
+        </div>
+        <div class="grid grid-cols-2 gap-1.5 text-[10px] mono">
+          <div class="bg-slate-900/80 px-2 py-1 rounded border border-slate-800/80">
+            <span class="text-slate-400">Bow Wind:</span>
+            <span id="hudBowWind" class="font-bold text-amber-300 float-right">16.0 kt</span>
+          </div>
+          <div class="bg-slate-900/80 px-2 py-1 rounded border border-slate-800/80">
+            <span class="text-slate-400">Stern Wind:</span>
+            <span id="hudSternWind" class="font-bold text-sky-300 float-right">16.0 kt</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 mt-1.5">
+          <span class="text-[10px] text-slate-400">Ambient Wind:</span>
+          <input id="windSpeedSlider" type="range" min="0" max="25" step="0.5" value="16" oninput="setManualWindSpeed(this.value)" class="helm-slider flex-1" />
+          <button onclick="triggerInstantGust()" class="px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/40 text-[10px] font-bold">
+            +22kt Gust
+          </button>
+        </div>
+      </div>
+
+      <!-- Hull Trait & Captain's Coaching Callout -->
+      <div id="hudCaptainBanner" class="mt-2 p-2 rounded-lg bg-sky-950/60 border border-sky-500/40 text-[11px] text-sky-100 leading-snug">
+        <strong class="text-sky-300">Captain's Note:</strong> Bump in gear for 1.5–2.5s, return to Neutral, and watch the prop-wash aeration bubbles before the hull breaks inertia.
+      </div>
+    </div>
+
+    <!-- RIGHT FLOATING HUD: 3D CAMERA PRESETS, COACHING OVERLAYS & RING BUFFER TIMELINE -->
+    <div class="absolute top-3 right-3 w-76 flex flex-col gap-2 pointer-events-auto">
+      <!-- 3D Camera Rig & 1st-Person Sightline Switcher -->
+      <div class="bg-[#0d1520]/90 backdrop-blur-md border border-slate-700/70 rounded-xl p-2.5 shadow-2xl">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-[10px] font-extrabold uppercase tracking-wider text-sky-300">3D Camera Rig &amp; Sightlines</span>
+          <span class="text-[9.5px] text-slate-400">Drag canvas to orbit</span>
+        </div>
+        <div class="grid grid-cols-2 gap-1">
+          <button id="camBtnChase" onclick="setCameraMode('chase')" class="cam-btn px-2 py-1.5 rounded text-[11px] font-bold bg-sky-500/25 text-white border border-sky-400/60 text-left">
+            🎥 1. Elevated 3D Chase
+          </button>
+          <button id="camBtnQuarter" onclick="setCameraMode('quarter')" class="cam-btn px-2 py-1.5 rounded text-[11px] font-semibold bg-slate-900/80 text-slate-300 border border-slate-800 hover:bg-slate-800 text-left">
+            ⚓ 2. Dockside Quarter
+          </button>
+          <button id="camBtnOverhead" onclick="setCameraMode('overhead')" class="cam-btn px-2 py-1.5 rounded text-[11px] font-semibold bg-slate-900/80 text-slate-300 border border-slate-800 hover:bg-slate-800 text-left">
+            🦅 3. Bird's-Eye Top
+          </button>
+          <button id="camBtnHelm" onclick="setCameraMode('helm_aft')" class="cam-btn px-2 py-1.5 rounded text-[11px] font-semibold bg-slate-900/80 text-amber-300 border border-slate-800 hover:bg-slate-800 text-left">
+            👀 4. 1st-Person Aft Look
+          </button>
+        </div>
+        <!-- Sub-controls when in 1st-Person Helm Sightline Mode -->
+        <div id="helmLookSubBar" class="hidden mt-1.5 pt-1.5 border-t border-slate-800 flex items-center justify-between gap-1">
+          <span class="text-[10px] text-amber-300 font-semibold">Head Gaze:</span>
+          <button onclick="setHelmGaze(-135)" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] mono text-slate-200">Port Aft 135°</button>
+          <button onclick="setHelmGaze(0)" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] mono text-slate-200">Bow 0°</button>
+          <button onclick="setHelmGaze(135)" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] mono text-slate-200">Stbd Aft 135°</button>
+        </div>
+      </div>
+
+      <!-- "Making Invisible Forces Visible" Coaching Overlays -->
+      <div class="bg-[#0d1520]/90 backdrop-blur-md border border-slate-700/70 rounded-xl p-2.5 shadow-2xl">
+        <div class="text-[10px] font-extrabold uppercase tracking-wider text-emerald-300 mb-1.5">
+          "Golf Sim" Visual Coaching Overlays
+        </div>
+        <div class="grid grid-cols-2 gap-1 text-[10.5px]">
+          <label class="flex items-center gap-1.5 bg-slate-900/70 px-2 py-1 rounded border border-slate-800 cursor-pointer">
+            <input type="checkbox" id="ovPivot" checked onchange="syncOverlays()" class="accent-emerald-400" />
+            <span>Pivot Point +CLR</span>
+          </label>
+          <label class="flex items-center gap-1.5 bg-slate-900/70 px-2 py-1 rounded border border-slate-800 cursor-pointer">
+            <input type="checkbox" id="ovVectors" checked onchange="syncOverlays()" class="accent-sky-400" />
+            <span>HDG vs COG Vectors</span>
+          </label>
+          <label class="flex items-center gap-1.5 bg-slate-900/70 px-2 py-1 rounded border border-slate-800 cursor-pointer">
+            <input type="checkbox" id="ovWindShadow" checked onchange="syncOverlays()" class="accent-amber-400" />
+            <span>Wind-Shadow Lee</span>
+          </label>
+          <label class="flex items-center gap-1.5 bg-slate-900/70 px-2 py-1 rounded border border-slate-800 cursor-pointer">
+            <input type="checkbox" id="ovGhostTrack" checked onchange="syncOverlays()" class="accent-purple-400" />
+            <span>Ghost Track Envelope</span>
+          </label>
+        </div>
+
+        <!-- 15-Second Ring Buffer Scrubber Bar -->
+        <div class="mt-2 pt-2 border-t border-slate-800">
+          <div class="flex items-center justify-between text-[10px] mono mb-1">
+            <span class="text-amber-300 font-bold">50Hz Ring Buffer (1,500 slots)</span>
+            <span id="hudBufferFill" class="text-slate-300">0.0s buffered</span>
+          </div>
+          <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+            <div id="hudBufferBar" class="h-full bg-gradient-to-r from-amber-500 to-emerald-400 w-0 transition-all duration-100"></div>
+          </div>
+          <div class="flex justify-between mt-1.5 gap-1">
+            <button onclick="triggerGolfSimRewind(5)" class="flex-1 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-bold text-amber-300 border border-slate-700">⏪ -5s</button>
+            <button onclick="triggerGolfSimRewind(10)" class="flex-1 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-bold text-amber-300 border border-slate-700">⏪ -10s</button>
+            <button onclick="triggerGolfSimRewind(15)" class="flex-1 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-[10px] font-extrabold text-amber-200 border border-amber-400/40">⏪ -15s Full</button>
+            <button onclick="togglePauseSim()" id="btnPauseSim" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-bold text-white border border-slate-700">⏸ Pause</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER TOP BANNER: COLLISION OR REWIND TOAST -->
+    <div id="simToastBanner" class="hidden absolute top-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-xl bg-amber-500 text-slate-950 font-extrabold text-xs shadow-2xl border-2 border-white z-30 flex items-center gap-2">
+      <span id="simToastText">⏪ Rewound 15.0 seconds — exact 3-DOF momentum &amp; wind-gust state restored!</span>
+    </div>
+  </main>
+
+  <!-- =========================================================================
+       BOTTOM TACTILE HELM CONSOLE: THE 4 PHYSICAL CONTROLS (WITH AUTO-LOCKOUTS)
+       ========================================================================= -->
+  <footer class="bg-[#0e151f] border-t border-slate-800 px-3 py-2 z-20 shrink-0">
+    <div class="grid grid-cols-12 gap-2.5 items-stretch max-w-[1600px] mx-auto">
+
+      <!-- CONTROL 1: STEERING WHEEL (-32° to +32°) -->
+      <div class="col-span-12 sm:col-span-3 bg-[#141d2b] border border-slate-800 rounded-xl p-2.5 flex flex-col justify-between relative">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-1.5">
+            <span class="w-5 h-5 rounded bg-sky-500/20 border border-sky-400/40 text-sky-300 text-[11px] font-extrabold flex items-center justify-center">1</span>
+            <span class="text-xs font-extrabold text-white tracking-tight">Steering Wheel</span>
+          </div>
+          <span id="lblWheelModeTag" class="text-[10px] mono px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-400/30">Vectored Outboards</span>
+        </div>
+
+        <div class="flex items-center gap-3 my-1.5">
+          <!-- Interactive Visual Helm Wheel SVG -->
+          <div id="wheelSvgWrap" class="w-14 h-14 shrink-0 rounded-full bg-[#0a1018] border border-slate-700 flex items-center justify-center cursor-pointer" title="Click to Center Wheel">
+            <svg id="wheelSvg" class="w-12 h-12 text-sky-300 transition-transform duration-75" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3.5">
+              <circle cx="32" cy="32" r="24" />
+              <circle cx="32" cy="32" r="6" fill="currentColor" />
+              <line x1="32" y1="8" x2="32" y2="26" stroke-width="4.5" stroke="#f59e0b" />
+              <line x1="11" y1="44" x2="27" y2="35" />
+              <line x1="53" y1="44" x2="37" y2="35" />
+            </svg>
+          </div>
+
+          <div class="flex-1">
+            <div class="flex justify-between text-[11px] mono font-bold mb-1">
+              <span class="text-rose-300">PORT</span>
+              <span id="lblWheelAngle" class="text-white">0.0° Amidships</span>
+              <span class="text-emerald-300">STBD</span>
+            </div>
+            <input id="ctrlWheelSlider" type="range" min="-32" max="32" step="0.5" value="0" oninput="onWheelInput(this.value)" class="helm-slider w-full" />
+            <div class="flex justify-between items-center mt-1.5">
+              <span class="text-[9.5px] mono text-slate-400">Keys: [A / D] or [← / →]</span>
+              <button onclick="centerWheel()" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-bold text-sky-300 border border-slate-700">
+                Center [Space]
+              </button>
+            </div>
+          </div>
+        </div>
+        <div id="wheelBehaviorNote" class="text-[10px] text-slate-400 leading-tight">
+          Swivels twin F425 nozzles ±30° (or ±32° in HMEX).
+        </div>
+      </div>
+
+      <!-- CONTROL 2: DUAL BINNACLES WITH FWD IDLE / NEUTRAL / REV IDLE DETENTS -->
+      <div class="col-span-12 sm:col-span-4 bg-[#141d2b] border border-slate-800 rounded-xl p-2.5 flex flex-col justify-between relative">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-1.5">
+            <span class="w-5 h-5 rounded bg-amber-500/20 border border-amber-400/40 text-amber-300 text-[11px] font-extrabold flex items-center justify-center">2</span>
+            <span id="lblBinnacleTitle" class="text-xs font-extrabold text-white tracking-tight">Dual Throttle Binnacles (Detents)</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <button onclick="allNeutralBinnacles()" class="px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/40 text-[10px] font-extrabold">
+              ALL NEUTRAL [N]
+            </button>
+          </div>
+        </div>
+
+        <!-- Port & Starboard Lever Controls -->
+        <div class="grid grid-cols-2 gap-2.5 my-1">
+          <!-- PORT LEVER (Or Single Engine Master Lever on 25' I/O) -->
+          <div class="bg-[#0b1119] border border-slate-800 rounded-lg p-2">
+            <div class="flex items-center justify-between text-[10.5px] font-bold mb-1">
+              <span id="lblPortLeverName" class="text-rose-300">PORT ENGINE [W/S]</span>
+              <span id="lblPortGearRpm" class="mono text-slate-200">NEUTRAL · 600 RPM</span>
+            </div>
+            <input id="ctrlPortThrottle" type="range" min="-100" max="100" step="1" value="0" oninput="onBinnacleSlider('port', this.value)" class="helm-slider w-full" />
+            <!-- Crisp Mechanical Detent Buttons -->
+            <div class="grid grid-cols-3 gap-1 mt-1.5">
+              <button onclick="setEngineDetent('port', -18)" class="py-1 rounded bg-rose-950/80 hover:bg-rose-900/80 border border-rose-500/40 text-[10px] font-bold text-rose-200">Rev Idle</button>
+              <button onclick="setEngineDetent('port', 0)" class="py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-[10px] font-extrabold text-white">Neutral</button>
+              <button onclick="setEngineDetent('port', 18)" class="py-1 rounded bg-emerald-950/80 hover:bg-emerald-900/80 border border-emerald-500/40 text-[10px] font-bold text-emerald-200">Fwd Idle</button>
+            </div>
+          </div>
+
+          <!-- STARBOARD LEVER (Locked with clear UI badge on 25' Single I/O!) -->
+          <div class="bg-[#0b1119] border border-slate-800 rounded-lg p-2 relative overflow-hidden">
+            <div class="flex items-center justify-between text-[10.5px] font-bold mb-1">
+              <span class="text-emerald-300">STBD ENGINE [I/K]</span>
+              <span id="lblStbdGearRpm" class="mono text-slate-200">NEUTRAL · 600 RPM</span>
+            </div>
+            <input id="ctrlStbdThrottle" type="range" min="-100" max="100" step="1" value="0" oninput="onBinnacleSlider('stbd', this.value)" class="helm-slider w-full" />
+            <div class="grid grid-cols-3 gap-1 mt-1.5">
+              <button onclick="setEngineDetent('stbd', -18)" class="py-1 rounded bg-rose-950/80 hover:bg-rose-900/80 border border-rose-500/40 text-[10px] font-bold text-rose-200">Rev Idle</button>
+              <button onclick="setEngineDetent('stbd', 0)" class="py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-[10px] font-extrabold text-white">Neutral</button>
+              <button onclick="setEngineDetent('stbd', 18)" class="py-1 rounded bg-emerald-950/80 hover:bg-emerald-900/80 border border-emerald-500/40 text-[10px] font-bold text-emerald-200">Fwd Idle</button>
+            </div>
+
+            <!-- Lockout Badge for 25' Single I/O -->
+            <div id="lockStbdThrottle" class="hidden locked-overlay absolute inset-0 flex flex-col items-center justify-center p-2 text-center z-10">
+              <span class="px-2 py-0.5 rounded bg-rose-500/20 border border-rose-400/50 text-rose-200 text-[10px] font-extrabold uppercase tracking-wider">🔒 Locked · Single I/O</span>
+              <span class="text-[9.5px] text-slate-300 mt-0.5">25' Runabout uses Single Master Lever</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between text-[10px] text-slate-400">
+          <span id="lblShiftLagStatus">Shift Actuator: 0.45s clunk delay · Spool τ = 0.75s</span>
+          <div class="flex gap-1">
+            <button onclick="setSplitPivot('cw')" id="btnQuickPivotCW" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 font-semibold">↻ Split Pivot CW</button>
+            <button onclick="setSplitPivot('ccw')" id="btnQuickPivotCCW" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 font-semibold">↺ Split Pivot CCW</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- CONTROL 3: BOW THRUSTER ROCKER + AGM BATTERY 20s/30s DUTY-CYCLE METER -->
+      <div class="col-span-12 sm:col-span-2 bg-[#141d2b] border border-slate-800 rounded-xl p-2.5 flex flex-col justify-between relative overflow-hidden">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-1.5">
+            <span class="w-5 h-5 rounded bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[11px] font-extrabold flex items-center justify-center">3</span>
+            <span class="text-xs font-extrabold text-white tracking-tight">Bow Thruster</span>
+          </div>
+          <span id="lblThrusterSpec" class="text-[9.5px] mono text-emerald-300">3.0 HP AGM</span>
+        </div>
+
+        <!-- Momentary Rocker Buttons (Hold Q / E or Mouse Down) -->
+        <div class="grid grid-cols-2 gap-1.5 my-1.5">
+          <button id="btnThrusterPort"
+            onmousedown="setBowThrusterInput(-1)" onmouseup="setBowThrusterInput(0)" onmouseleave="setBowThrusterInput(0)"
+            ontouchstart="setBowThrusterInput(-1); event.preventDefault();" ontouchend="setBowThrusterInput(0)"
+            class="py-2.5 rounded-lg bg-[#0a1018] hover:bg-rose-950/70 active:bg-rose-600/40 border border-slate-700 hover:border-rose-400/60 flex flex-col items-center justify-center transition">
+            <span class="text-xs font-extrabold text-rose-300">◀ PORT</span>
+            <span class="text-[9px] mono text-slate-400">Hold [Q]</span>
+          </button>
+          <button id="btnThrusterStbd"
+            onmousedown="setBowThrusterInput(1)" onmouseup="setBowThrusterInput(0)" onmouseleave="setBowThrusterInput(0)"
+            ontouchstart="setBowThrusterInput(1); event.preventDefault();" ontouchend="setBowThrusterInput(0)"
+            class="py-2.5 rounded-lg bg-[#0a1018] hover:bg-emerald-950/70 active:bg-emerald-600/40 border border-slate-700 hover:border-emerald-400/60 flex flex-col items-center justify-center transition">
+            <span class="text-xs font-extrabold text-emerald-300">STBD ▶</span>
+            <span class="text-[9px] mono text-slate-400">Hold [E]</span>
+          </button>
+        </div>
+
+        <!-- AGM Battery Duty Cycle & Speed-Fade Meter -->
+        <div>
+          <div class="flex justify-between text-[9.5px] mono mb-0.5">
+            <span id="lblThrusterDutyState" class="text-slate-300">AGM Bank: 100%</span>
+            <span id="lblThrusterEffectiveness" class="text-emerald-300">Eff: 100%</span>
+          </div>
+          <div class="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+            <div id="barThrusterDuty" class="h-full bg-emerald-400 w-full transition-all duration-100"></div>
+          </div>
+          <div id="lblThrusterSubNote" class="text-[9px] text-slate-400 mt-1 leading-tight">
+            Sag at 20s · Thermal cutout at 30s · Fades &gt;2 kt
+          </div>
+        </div>
+
+        <!-- Lockout Overlay for 25' Single I/O -->
+        <div id="lockBowThruster" class="hidden locked-overlay absolute inset-0 flex flex-col items-center justify-center p-3 text-center z-10">
+          <span class="px-2 py-0.5 rounded bg-rose-500/20 border border-rose-400/50 text-rose-200 text-[10px] font-extrabold uppercase tracking-wider">🔒 No Bow Thruster</span>
+          <span class="text-[10px] text-slate-300 mt-1">25' Single I/O has no tunnel thruster. Set wheel angle BEFORE bumping into gear!</span>
+        </div>
+      </div>
+
+      <!-- CONTROL 4: 3-AXIS HELM MASTER EX MANEUVERING JOYSTICK -->
+      <div class="col-span-12 sm:col-span-3 bg-[#141d2b] border border-slate-800 rounded-xl p-2.5 flex flex-col justify-between relative overflow-hidden">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-1.5">
+            <span class="w-5 h-5 rounded bg-purple-500/20 border border-purple-400/40 text-purple-300 text-[11px] font-extrabold flex items-center justify-center">4</span>
+            <span class="text-xs font-extrabold text-white tracking-tight">3-Axis HMEX Joystick</span>
+          </div>
+          <span id="lblJoystickStatus" class="text-[9.5px] mono px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-400/30">1,800 RPM Cap</span>
+        </div>
+
+        <div class="flex items-center gap-2.5 my-1">
+          <!-- Draggable 2D X/Y Lateral Crab Pad -->
+          <div class="relative w-16 h-16 shrink-0 rounded-xl bg-[#090e16] border border-slate-700 flex items-center justify-center">
+            <canvas id="joystickPadCanvas" width="64" height="64" class="w-16 h-16 cursor-pointer"></canvas>
+          </div>
+
+          <div class="flex-1">
+            <div class="flex justify-between text-[10px] mono text-slate-300 mb-1">
+              <span id="lblJoyXY">Crab X/Y: 0%, 0%</span>
+              <span id="lblJoyTwist">Yaw Z: 0%</span>
+            </div>
+            <!-- Z-Axis Twist Yaw Buttons / Slider -->
+            <input id="ctrlJoyTwist" type="range" min="-100" max="100" step="1" value="0" oninput="onJoystickTwist(this.value)" class="helm-slider w-full" />
+            <div class="flex justify-between items-center mt-1">
+              <span class="text-[9px] mono text-slate-400">Drag pad · Twist [J/L]</span>
+              <button onclick="zeroJoystick()" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[9.5px] font-bold text-purple-300 border border-slate-700">
+                Center Joy
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Authority Saturation Meter (TC-05 / CB-03) -->
+        <div class="flex items-center justify-between text-[9.5px] mono">
+          <span class="text-slate-400">Aft Vector Load:</span>
+          <span id="lblJoySaturation" class="text-emerald-300 font-bold">0% (Nominal)</span>
+        </div>
+
+        <!-- Lockout Overlay for 25' Single I/O AND 52' Twin Fixed-Shaft Inboard -->
+        <div id="lockJoystick" class="hidden locked-overlay absolute inset-0 flex flex-col items-center justify-center p-3 text-center z-10">
+          <span id="lockJoystickBadge" class="px-2 py-0.5 rounded bg-rose-500/20 border border-rose-400/50 text-rose-200 text-[10px] font-extrabold uppercase tracking-wider">🔒 Joystick Disabled</span>
+          <span id="lockJoystickDesc" class="text-[10px] text-slate-300 mt-1 leading-snug">
+            Traditional fixed-shaft inboards cannot vector thrust sideways. Center wheel &amp; steer with split diesels + bow thruster!
+          </span>
+        </div>
+      </div>
+
+    </div>
+  </footer>
+
+  <!-- =========================================================================
+       EMBEDDED BOAT PACKAGES (EXACT DATA FROM boats/*/boat.json) & 50HZ SOLVER
+       ========================================================================= -->
+  <script>
+    const BOAT_PACKAGES = {
+      "sterndrive-25-2023": {
+        id: "sterndrive-25-2023",
+        name: "2023 25' Single Sterndrive (I/O) Runabout",
+        shortName: "25' Single I/O Runabout",
+        engineDesc: "Single MerCruiser 6.2L 350 HP Bravo Three Duoprop",
+        loa_ft: 25.0,
+        loa_m: 7.62,
+        lwl_m: 6.74,
+        beam_ft: 8.5,
+        beam_m: 2.59,
+        disp_lbs: 5850,
+        slip_width_ft: 12.0,
+        nominal_clearance_in: 21.0,
+        hullColors: { topside: "#e2e8f0", accent: "#0284c7", deck: "#cbd5e1", bottom: "#0f172a" },
+        mass_and_inertia: {
+          mass_kg: 2653.5,
+          effective_mass_surge_kg: 2812.7,
+          effective_mass_sway_kg: 4670.2,
+          effective_yaw_inertia_kg_m2: 14916.7
+        },
+        hydrodynamic_damping: {
+          surge_linear_xu: 235.0,
+          surge_quadratic_xuu: 310.0,
+          surge_astern_drag_mult: 1.38,
+          sway_linear_yv: 1420.0,
+          sway_quadratic_yvv: 5850.0,
+          yaw_linear_nr: 9100.0,
+          yaw_quadratic_nrr: 19500.0
+        },
+        pivot_point_and_coupling: {
+          clr_at_rest_from_cg_m: -0.22,
+          pivot_forward_max_offset_m: 1.68,
+          pivot_astern_max_offset_m: -1.48,
+          pivot_migration_saturation_speed_mps: 1.54,
+          munk_moment_sway_to_yaw_nv: -1150.0,
+          yaw_to_sway_coupling_yr: 860.0
+        },
+        aero: {
+          lateral_area_fwd_m2: 4.35,
+          lateral_area_aft_m2: 3.30,
+          frontal_area_m2: 3.25,
+          cy_90: 0.88,
+          cd_0: 0.60,
+          effective_aero_lever_arm_m: 0.58
+        },
+        propulsion: {
+          type: "single_sterndrive_duoprop",
+          count: 1,
+          steerable_props: true,
+          has_rudders: false,
+          max_steer_deg: 32.0,
+          longitudinal_x_m: -3.05,
+          lateral_y_m: 0.0,
+          max_ahead_thrust_n: 13600.0,
+          max_astern_thrust_n: 8900.0,
+          idle_ahead_thrust_n: 840.0,
+          idle_astern_thrust_n: 660.0,
+          shift_delay_s: 0.38,
+          spool_up_s: 0.55,
+          spool_down_s: 0.40,
+          prop_walk_ahead: 0.008,
+          prop_walk_astern: -0.025
+        },
+        thruster: {
+          installed: false,
+          spec_label: "Locked (None)",
+          x_m: 0,
+          max_thrust_n: 0,
+          sag_onset_s: 20,
+          cutout_s: 30
+        },
+        joystick: {
+          enabled: false,
+          lock_reason: "25' Single I/O has a single sterndrive and no bow thruster — lateral joystick crabbing is physically impossible."
+        },
+        controls: {
+          single_throttle: true,
+          wheel_mode_tag: "Steerable Outdrive (±32°)",
+          wheel_note: "Zero yaw authority in Neutral! Set wheel angle BEFORE bumping into Forward or Reverse gear.",
+          captain_note: "25' Single I/O (5,850 lbs): Light hull blows sideways fast in a crosswind (2.88 m²/t). Turn the wheel BEFORE engaging a short gear bump."
+        },
+        helm_eye_m: { x: 0.22, y: 0.52, z: 1.68 }
+      },
+
+      "pursuit-s358-2023": {
+        id: "pursuit-s358-2023",
+        name: "2023 Pursuit S 358 Sport (Twin Yamaha F425 XTO)",
+        shortName: "35' Pursuit S 358 (Ref)",
+        engineDesc: "Twin Yamaha F425 XTO V8 Outboards + Lewmar 3.0 HP Thruster + HMEX",
+        loa_ft: 37.33,
+        loa_m: 11.38,
+        lwl_m: 9.69,
+        beam_ft: 11.33,
+        beam_m: 3.45,
+        disp_lbs: 18800,
+        slip_width_ft: 15.0,
+        nominal_clearance_in: 22.0,
+        hullColors: { topside: "#1e3a5f", accent: "#38bdf8", deck: "#f1f5f9", bottom: "#090d16" },
+        mass_and_inertia: {
+          mass_kg: 8527.5,
+          effective_mass_surge_kg: 9209.7,
+          effective_mass_sway_kg: 15775.9,
+          effective_yaw_inertia_kg_m2: 109515.0
+        },
+        hydrodynamic_damping: {
+          surge_linear_xu: 480.0,
+          surge_quadratic_xuu: 620.0,
+          surge_astern_drag_mult: 1.35,
+          sway_linear_yv: 3850.0,
+          sway_quadratic_yvv: 14200.0,
+          yaw_linear_nr: 28500.0,
+          yaw_quadratic_nrr: 94000.0
+        },
+        pivot_point_and_coupling: {
+          clr_at_rest_from_cg_m: -0.18,
+          pivot_forward_max_offset_m: 2.42,
+          pivot_astern_max_offset_m: -2.15,
+          pivot_migration_saturation_speed_mps: 1.80,
+          munk_moment_sway_to_yaw_nv: -4200.0,
+          yaw_to_sway_coupling_yr: 3100.0
+        },
+        aero: {
+          lateral_area_fwd_m2: 11.40,
+          lateral_area_aft_m2: 8.40,
+          frontal_area_m2: 7.85,
+          cy_90: 0.92,
+          cd_0: 0.68,
+          effective_aero_lever_arm_m: 0.70
+        },
+        propulsion: {
+          type: "twin_steerable_outboard",
+          count: 2,
+          steerable_props: true,
+          has_rudders: false,
+          max_steer_deg: 30.0,
+          longitudinal_x_m: -4.62,
+          lateral_y_m: 0.432, // 34.0 in centerline spacing
+          max_ahead_thrust_n: 18200.0,
+          max_astern_thrust_n: 11400.0,
+          idle_ahead_thrust_n: 1250.0,
+          idle_astern_thrust_n: 980.0,
+          shift_delay_s: 0.45,
+          spool_up_s: 0.75,
+          spool_down_s: 0.55,
+          prop_walk_ahead: 0.025,
+          prop_walk_astern: 0.085
+        },
+        thruster: {
+          installed: true,
+          spec_label: "3.0 HP Group 31 AGM",
+          x_m: 3.95,
+          max_thrust_n: 980.0,
+          sag_onset_s: 20.0,
+          cutout_s: 30.0,
+          full_eff_kts: 1.0,
+          zero_eff_kts: 4.2
+        },
+        joystick: {
+          enabled: true,
+          max_sway_force_n: 1380.0, // Capped at 1,800 RPM governor so 20-kt beam wind (~1,420 N) saturates per TC-05 & CB-03
+          max_surge_force_n: 3400.0,
+          max_yaw_moment_nm: 6200.0
+        },
+        controls: {
+          single_throttle: false,
+          wheel_mode_tag: "Vectored F425s (±30°)",
+          wheel_note: "Swivels both Yamaha F425 XTO outboards ±30°; vectors thrust ahead & astern.",
+          captain_note: "Pursuit S 358 (18,800 lbs): Narrow 34\" outboard spacing + high bow flare/hardtop. Anticipate bow wind shear entering the 15' GPYC slip!"
+        },
+        helm_eye_m: { x: 0.35, y: 0.42, z: 2.18 }
+      },
+
+      "cruiser-52-2023": {
+        id: "cruiser-52-2023",
+        name: "2023 52' Twin-Inboard Express Motor Yacht",
+        shortName: "52' Twin-Inboard Cruiser",
+        engineDesc: "Twin 725 HP Straight-Shaft Diesels + Prop-Wash Rudders + 24V Thruster",
+        loa_ft: 52.0,
+        loa_m: 15.85,
+        lwl_m: 13.96,
+        beam_ft: 15.5,
+        beam_m: 4.72,
+        disp_lbs: 48500,
+        slip_width_ft: 18.0,
+        nominal_clearance_in: 15.0,
+        hullColors: { topside: "#27272a", accent: "#f59e0b", deck: "#e4e4e7", bottom: "#090d16" },
+        mass_and_inertia: {
+          mass_kg: 22000.0,
+          effective_mass_surge_kg: 23980.0,
+          effective_mass_sway_kg: 42240.0,
+          effective_yaw_inertia_kg_m2: 545055.0
+        },
+        hydrodynamic_damping: {
+          surge_linear_xu: 920.0,
+          surge_quadratic_xuu: 1350.0,
+          surge_astern_drag_mult: 1.42,
+          sway_linear_yv: 8400.0,
+          sway_quadratic_yvv: 29500.0,
+          yaw_linear_nr: 128000.0,
+          yaw_quadratic_nrr: 410000.0
+        },
+        pivot_point_and_coupling: {
+          clr_at_rest_from_cg_m: -0.25,
+          pivot_forward_max_offset_m: 3.49,
+          pivot_astern_max_offset_m: -3.10,
+          pivot_migration_saturation_speed_mps: 1.95,
+          munk_moment_sway_to_yaw_nv: -11500.0,
+          yaw_to_sway_coupling_yr: 8200.0
+        },
+        aero: {
+          lateral_area_fwd_m2: 22.80,
+          lateral_area_aft_m2: 19.30,
+          frontal_area_m2: 15.80,
+          cy_90: 0.95,
+          cd_0: 0.72,
+          effective_aero_lever_arm_m: 0.93
+        },
+        propulsion: {
+          type: "twin_fixed_shaft_inboard_rudder",
+          count: 2,
+          steerable_props: false,
+          has_rudders: true,
+          max_steer_deg: 35.0,
+          rudder_x_m: -6.25,
+          rudder_wash_gain: 0.88,
+          rudder_astern_eff: 0.12,
+          longitudinal_x_m: -5.60,
+          lateral_y_m: 1.15, // Wide 90.55-inch (2.30 m) shaft spacing!
+          max_ahead_thrust_n: 26500.0,
+          max_astern_thrust_n: 16800.0,
+          idle_ahead_thrust_n: 2450.0,
+          idle_astern_thrust_n: 1880.0,
+          shift_delay_s: 0.65,
+          spool_up_s: 1.15,
+          spool_down_s: 0.85,
+          prop_walk_ahead: 0.04,
+          prop_walk_astern: 0.24
+        },
+        thruster: {
+          installed: true,
+          spec_label: "8.7 HP 24V Sleipner",
+          x_m: 5.85,
+          max_thrust_n: 1380.0,
+          sag_onset_s: 35.0,
+          cutout_s: 60.0,
+          full_eff_kts: 1.2,
+          zero_eff_kts: 4.5
+        },
+        joystick: {
+          enabled: false,
+          lock_reason: "52' Twin Fixed-Shaft Inboard has non-steerable shafts (no pods). Center wheel (0°) and steer in reverse with split diesel levers + 24V bow thruster!"
+        },
+        controls: {
+          single_throttle: false,
+          wheel_mode_tag: "Prop-Wash Rudders Only",
+          wheel_note: "Props are FIXED SHAFT! Rudders bite with forward wash; in Reverse, center wheel and steer with split throttles + thruster.",
+          captain_note: "52' Twin-Inboard (48,500 lbs): 8.3× heavier than the 25' I/O with only 15\" per-side slip clearance! Wide 7.5-ft shaft spacing + 24% astern prop walk gives massive split-throttle pivot torque."
+        },
+        helm_eye_m: { x: 1.15, y: 0.75, z: 2.75 }
+      }
+    };
+
+    // =========================================================================
+    // SIMULATION STATE & 50 HZ 1,500-SLOT RING BUFFER
+    // =========================================================================
+    let activeBoatKey = "pursuit-s358-2023";
+    let activeScenarioKey = "CB-01";
+    let simPaused = false;
+
+    // Coordinate System (World Meters, GPYC East Basin):
+    // Target Slip Centerline is X = 0.
+    // Main Dock Seawall is at Y = 0.
+    // Slip Finger Piers & Outer Pilings extend from Y = 0 to Y = +13.72 m (45.0 ft).
+    // Fairway is Y > 13.72 m.
+    // Heading psi: 0 rad = North (+Y, pointing out into fairway), PI rad (180°) = South (-Y, pointing into slip).
+    // For Stern-In docking, boat heading psi is ~0° (000°, bow pointing North into fairway, stern backing South -Y into slip).
+    const SLIP_LENGTH_M = 13.72; // 45 ft slip depth
+    const NEIGHBOR_52_X_OFFSET_SIGN = -1; // Windward 52' Neighbor Yacht sits in the West (-X) slip, casting lee shadow across the target slip when wind blows from West (270°)
+
+    const simState = {
+      time_s: 0,
+      x_m: 0.0,          // East (+X) / West (-X) position relative to slip centerline
+      y_m: 22.0,         // Distance North (+Y) from main seawall (13.72m = outer pilings)
+      psi_rad: 0.0,      // 0 = Bow North (+Y, stern facing slip at -Y); +CW (East)
+      u_mps: 0.0,        // Surge velocity (+ahead, -astern)
+      v_mps: 0.0,        // Sway velocity (+starboard, -port)
+      r_radps: 0.0,      // Yaw rate (+clockwise / starboard)
+      roll_rad: 0.0,
+      roll_rate: 0.0,
+      pitch_rad: 0.0,
+      pitch_rate: 0.0,
+      pivot_x_m: -0.18,  // Apparent pivot point longitudinal offset from CG
+
+      // Controls & Actuator States
+      wheel_cmd_deg: 0.0,
+      wheel_actual_deg: 0.0,
+
+      port_cmd: 0.0,     // -100 to +100
+      stbd_cmd: 0.0,     // -100 to +100
+      port_gear: 0,      // -1, 0, +1
+      stbd_gear: 0,
+      port_shift_timer: 0.0,
+      stbd_shift_timer: 0.0,
+      port_spool: 0.0,   // Actual normalized thrust [-1..+1]
+      stbd_spool: 0.0,
+
+      thruster_cmd: 0.0, // -1 (Port) to +1 (Stbd)
+      thruster_spool: 0.0,
+      thruster_continuous_s: 0.0,
+      thruster_cutout_cooldown_s: 0.0,
+
+      joy_x: 0.0,        // Lateral crab (-1 Port .. +1 Stbd)
+      joy_y: 0.0,        // Surge (-1 Astern .. +1 Ahead)
+      joy_z: 0.0,        // Twist yaw (-1 CCW .. +1 CW)
+      joy_saturation_pct: 0.0,
+
+      // Wind & Curveball Environment
+      wind_base_kts: 16.0,
+      wind_from_deg: 270.0, // 270° = West wind blowing East (+X) across slip entrance
+      gust_active_kts: 0.0,
+      gust_timer_s: 0.0,
+      cb02_triggered: false,
+      bow_wind_kts: 16.0,
+      stern_wind_kts: 16.0,
+
+      // Clearance & Contact Telemetry
+      port_clearance_in: 22.0,
+      stbd_clearance_in: 22.0,
+      stern_seawall_ft: 35.0,
+      contact_alert: ""
+    };
+
+    // 50 Hz Ring Buffer (1,500 slots = 30s capacity; 15s = 750 slots)
+    const RING_CAPACITY = 1500;
+    const ringBuffer = new Array(RING_CAPACITY);
+    let ringWriteIdx = 0;
+    let ringCount = 0;
+
+    // Ghost Track History (sampled every 0.25s for overhead/3D trajectory ribbon)
+    let ghostTrack = [];
+    let ghostSampleAccum = 0;
+
+    function cloneSnapshot() {
+      return {
+        time_s: simState.time_s,
+        x_m: simState.x_m,
+        y_m: simState.y_m,
+        psi_rad: simState.psi_rad,
+        u_mps: simState.u_mps,
+        v_mps: simState.v_mps,
+        r_radps: simState.r_radps,
+        roll_rad: simState.roll_rad,
+        roll_rate: simState.roll_rate,
+        pitch_rad: simState.pitch_rad,
+        pitch_rate: simState.pitch_rate,
+        wheel_actual_deg: simState.wheel_actual_deg,
+        port_spool: simState.port_spool,
+        stbd_spool: simState.stbd_spool,
+        thruster_continuous_s: simState.thruster_continuous_s,
+        thruster_cutout_cooldown_s: simState.thruster_cutout_cooldown_s,
+        wind_base_kts: simState.wind_base_kts,
+        gust_active_kts: simState.gust_active_kts,
+        gust_timer_s: simState.gust_timer_s,
+        cb02_triggered: simState.cb02_triggered
+      };
+    }
+
+    function pushRingBuffer() {
+      ringBuffer[ringWriteIdx] = cloneSnapshot();
+      ringWriteIdx = (ringWriteIdx + 1) % RING_CAPACITY;
+      if (ringCount < RING_CAPACITY) ringCount++;
+    }
+
+    function triggerGolfSimRewind(secondsBack) {
+      if (ringCount < 5) return;
+      const stepsBack = Math.min(Math.round(secondsBack * 50), ringCount - 1);
+      const targetIdx = (ringWriteIdx - 1 - stepsBack + RING_CAPACITY * 2) % RING_CAPACITY;
+      const snap = ringBuffer[targetIdx];
+      if (!snap) return;
+
+      simState.time_s = snap.time_s;
+      simState.x_m = snap.x_m;
+      simState.y_m = snap.y_m;
+      simState.psi_rad = snap.psi_rad;
+      simState.u_mps = snap.u_mps;
+      simState.v_mps = snap.v_mps;
+      simState.r_radps = snap.r_radps;
+      simState.roll_rad = snap.roll_rad;
+      simState.roll_rate = snap.roll_rate;
+      simState.pitch_rad = snap.pitch_rad;
+      simState.pitch_rate = snap.pitch_rate;
+      simState.wheel_actual_deg = snap.wheel_actual_deg;
+      simState.port_spool = snap.port_spool;
+      simState.stbd_spool = snap.stbd_spool;
+      simState.thruster_continuous_s = snap.thruster_continuous_s;
+      simState.thruster_cutout_cooldown_s = snap.thruster_cutout_cooldown_s;
+      simState.gust_active_kts = snap.gust_active_kts;
+      simState.gust_timer_s = snap.gust_timer_s;
+      simState.cb02_triggered = snap.cb02_triggered;
+
+      // Put levers in neutral on rewind so operator can immediately apply the corrected control input
+      allNeutralBinnacles();
+      zeroJoystick();
+
+      ringWriteIdx = (targetIdx + 1) % RING_CAPACITY;
+      ringCount -= stepsBack;
+      ghostTrack = ghostTrack.filter(p => p.t <= simState.time_s);
+
+      showToast(`⏪ Rewound ${(stepsBack / 50).toFixed(1)}s — exact 3-DOF momentum, pivot & wind-gust state restored!`);
+    }
+
+    function showToast(msg) {
+      const b = document.getElementById("simToastBanner");
+      const t = document.getElementById("simToastText");
+      t.textContent = msg;
+      b.classList.remove("hidden");
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => b.classList.add("hidden"), 3200);
+    }
+
+    // =========================================================================
+    // BOAT PACKAGE & SCENARIO INITIALIZATION
+    // =========================================================================
+    function selectBoatPackage(boatKey) {
+      activeBoatKey = boatKey;
+      const pkg = BOAT_PACKAGES[boatKey];
+
+      // Update Tab Styling
+      const map = {
+        "sterndrive-25-2023": "btnBoatIo25",
+        "pursuit-s358-2023": "btnBoatS358",
+        "cruiser-52-2023": "btnBoatCruiser52"
+      };
+      Object.entries(map).forEach(([k, id]) => {
+        const el = document.getElementById(id);
+        if (k === boatKey) {
+          el.className = "boat-tab px-2.5 py-1 rounded text-left transition-all bg-sky-500/20 border border-sky-400/50 shadow-sm";
+        } else {
+          el.className = "boat-tab px-2.5 py-1 rounded text-left transition-all border border-transparent hover:bg-slate-800/60";
+        }
+      });
+
+      // Update HUD Headers & Lockout Overlays
+      document.getElementById("hudBoatTitle").textContent = pkg.name;
+      document.getElementById("hudBoatSpecs").textContent =
+        `${pkg.loa_ft.toFixed(1)}' × ${pkg.beam_ft.toFixed(1)}' · ${pkg.disp_lbs.toLocaleString()} lbs · ${pkg.slip_width_ft.toFixed(0)}'0" GPYC Slip`;
+      document.getElementById("hudSlipWidthTag").textContent =
+        `${pkg.slip_width_ft.toFixed(0)}'0" Slip (${pkg.nominal_clearance_in.toFixed(0)}" Nominal)`;
+
+      document.getElementById("lblWheelModeTag").textContent = pkg.controls.wheel_mode_tag;
+      document.getElementById("wheelBehaviorNote").textContent = pkg.controls.wheel_note;
+      document.getElementById("hudCaptainBanner").innerHTML =
+        `<strong class="text-sky-300">Captain's Note:</strong> ${pkg.controls.captain_note}`;
+
+      // Lock/Unlock Second Throttle, Bow Thruster, and 3-Axis Joystick
+      const lockStbd = document.getElementById("lockStbdThrottle");
+      const lockThr = document.getElementById("lockBowThruster");
+      const lockJoy = document.getElementById("lockJoystick");
+
+      if (pkg.controls.single_throttle) {
+        lockStbd.classList.remove("hidden");
+        document.getElementById("lblBinnacleTitle").textContent = "Single Sterndrive Binnacle (Detents)";
+        document.getElementById("lblPortLeverName").textContent = "SINGLE I/O LEVER [W/S]";
+        document.getElementById("btnQuickPivotCW").classList.add("opacity-40", "pointer-events-none");
+        document.getElementById("btnQuickPivotCCW").classList.add("opacity-40", "pointer-events-none");
+      } else {
+        lockStbd.classList.add("hidden");
+        document.getElementById("lblBinnacleTitle").textContent = "Dual Throttle Binnacles (Detents)";
+        document.getElementById("lblPortLeverName").textContent = "PORT ENGINE [W/S]";
+        document.getElementById("btnQuickPivotCW").classList.remove("opacity-40", "pointer-events-none");
+        document.getElementById("btnQuickPivotCCW").classList.remove("opacity-40", "pointer-events-none");
+      }
+
+      if (!pkg.thruster.installed) {
+        lockThr.classList.remove("hidden");
+      } else {
+        lockThr.classList.add("hidden");
+        document.getElementById("lblThrusterSpec").textContent = pkg.thruster.spec_label;
+      }
+
+      if (!pkg.joystick.enabled) {
+        lockJoy.classList.remove("hidden");
+        document.getElementById("lockJoystickBadge").textContent =
+          boatKey === "sterndrive-25-2023" ? "🔒 Locked · Single I/O" : "🔒 Locked · Fixed-Shaft Inboard";
+        document.getElementById("lockJoystickDesc").textContent = pkg.joystick.lock_reason;
+      } else {
+        lockJoy.classList.add("hidden");
+      }
+
+      document.getElementById("lblShiftLagStatus").textContent =
+        `Shift Clunk: ${pkg.propulsion.shift_delay_s.toFixed(2)}s · Spool τ = ${pkg.propulsion.spool_up_s.toFixed(2)}s`;
+
+      resetScenario();
+    }
+
+    function loadScenario(scenKey) {
+      activeScenarioKey = scenKey;
+      resetScenario();
+    }
+
+    function resetScenario() {
+      const pkg = BOAT_PACKAGES[activeBoatKey];
+      allNeutralBinnacles();
+      centerWheel();
+      zeroJoystick();
+
+      simState.time_s = 0;
+      simState.u_mps = 0;
+      simState.v_mps = 0;
+      simState.r_radps = 0;
+      simState.roll_rad = 0;
+      simState.roll_rate = 0;
+      simState.pitch_rad = 0;
+      simState.pitch_rate = 0;
+      simState.thruster_continuous_s = 0;
+      simState.thruster_cutout_cooldown_s = 0;
+      simState.gust_active_kts = 0;
+      simState.gust_timer_s = 0;
+      simState.cb02_triggered = false;
+      simState.contact_alert = "";
+
+      if (activeScenarioKey === "CB-01") {
+        // CB-01: Fairway-to-Slip Wind-Shadow Trap (Positioned outside outer pilings, lined up to back stern-in)
+        simState.x_m = -0.6; // Slight windward offset
+        simState.y_m = SLIP_LENGTH_M + pkg.loa_m * 0.65 + 3.5;
+        simState.psi_rad = -0.05; // Slight windward bow lead into West wind
+        simState.u_mps = -0.35;   // Gentle 0.7 kt sternway glide toward slip pilings
+        simState.wind_base_kts = 16.0;
+        simState.wind_from_deg = 270.0;
+      } else if (activeScenarioKey === "CB-02") {
+        // CB-02: Mid-Pivot 22-kt Lake St. Clair Gust (Approaching down fairway heading East 090°, ready to pivot 90° to 000°)
+        simState.x_m = -3.0;
+        simState.y_m = SLIP_LENGTH_M + pkg.loa_m * 0.75 + 5.0;
+        simState.psi_rad = Math.PI * 0.42; // ~75° heading, turning CCW toward 000°
+        simState.u_mps = 0.0;
+        simState.wind_base_kts = 12.0;
+        simState.wind_from_deg = 270.0;
+      } else if (activeScenarioKey === "CB-03") {
+        // CB-03: 20-kt Beam Wind HMEX Joystick Saturation Test
+        simState.x_m = 2.2;
+        simState.y_m = SLIP_LENGTH_M + pkg.loa_m * 0.65 + 4.0;
+        simState.psi_rad = 0.0;
+        simState.u_mps = 0.0;
+        simState.wind_base_kts = 20.0;
+        simState.wind_from_deg = 270.0;
+      } else {
+        // TC-01..08 Open-Water & Slip Calibration Sandbox
+        simState.x_m = 0.0;
+        simState.y_m = SLIP_LENGTH_M + pkg.loa_m * 0.8 + 6.0;
+        simState.psi_rad = 0.0;
+        simState.u_mps = 0.0;
+        simState.wind_base_kts = 0.0;
+        simState.wind_from_deg = 270.0;
+      }
+
+      document.getElementById("windSpeedSlider").value = simState.wind_base_kts;
+      ringWriteIdx = 0;
+      ringCount = 0;
+      ghostTrack = [];
+      pushRingBuffer();
+    }
+
+    // =========================================================================
+    // HELM CONTROL HANDLERS (WHEEL, BINNACLES, THRUSTER, 3-AXIS JOYSTICK)
+    // =========================================================================
+    function onWheelInput(val) {
+      simState.wheel_cmd_deg = parseFloat(val);
+      updateWheelUI();
+    }
+    function centerWheel() {
+      simState.wheel_cmd_deg = 0;
+      document.getElementById("ctrlWheelSlider").value = 0;
+      updateWheelUI();
+    }
+    function updateWheelUI() {
+      const deg = simState.wheel_cmd_deg;
+      const lbl = document.getElementById("lblWheelAngle");
+      if (Math.abs(deg) < 0.5) {
+        lbl.textContent = "0.0° Amidships";
+      } else if (deg < 0) {
+        lbl.textContent = `${Math.abs(deg).toFixed(1)}° Port`;
+      } else {
+        lbl.textContent = `${deg.toFixed(1)}° Stbd`;
+      }
+      const svg = document.getElementById("wheelSvg");
+      svg.style.transform = `rotate(${deg * 4.5}deg)`;
+    }
+    document.getElementById("wheelSvgWrap").addEventListener("click", centerWheel);
+
+    function applyThrottleDetentSnap(rawVal) {
+      const v = parseFloat(rawVal);
+      if (Math.abs(v) < 7) return 0; // Neutral deadband
+      if (v > 0 && v < 22) return 18; // Fwd Idle detent snap
+      if (v < 0 && v > -22) return -18; // Rev Idle detent snap
+      return v;
+    }
+
+    function onBinnacleSlider(side, val) {
+      const snapped = applyThrottleDetentSnap(val);
+      const pkg = BOAT_PACKAGES[activeBoatKey];
+      if (side === "port") {
+        simState.port_cmd = snapped;
+        document.getElementById("ctrlPortThrottle").value = snapped;
+        if (pkg.controls.single_throttle) {
+          simState.stbd_cmd = 0;
+        }
+      } else if (!pkg.controls.single_throttle) {
+        simState.stbd_cmd = snapped;
+        document.getElementById("ctrlStbdThrottle").value = snapped;
+      }
+      updateBinnacleUI();
+    }
+
+    function setEngineDetent(side, val) {
+      onBinnacleSlider(side, val);
+    }
+
+    function allNeutralBinnacles() {
+      simState.port_cmd = 0;
+      simState.stbd_cmd = 0;
+      document.getElementById("ctrlPortThrottle").value = 0;
+      document.getElementById("ctrlStbdThrottle").value = 0;
+      updateBinnacleUI();
+    }
+
+    function setSplitPivot(dir) {
+      const pkg = BOAT_PACKAGES[activeBoatKey];
+      if (pkg.controls.single_throttle) return;
+      centerWheel();
+      if (dir === "cw") {
+        setEngineDetent("port", 18);
+        setEngineDetent("stbd", -18);
+      } else {
+        setEngineDetent("port", -18);
+        setEngineDetent("stbd", 18);
+      }
+    }
+
+    function formatGearRpm(cmd, pkg) {
+      if (Math.abs(cmd) < 7) return "NEUTRAL · 600 RPM";
+      const isFwd = cmd > 0;
+      const frac = Math.max(0, (Math.abs(cmd) - 18) / 82);
+      const maxRpm = pkg.id === "cruiser-52-2023" ? 2100 : 3200;
+      const rpm = Math.round(650 + frac * (maxRpm - 650));
+      return `${isFwd ? "AHEAD" : "ASTERN"} · ${rpm} RPM`;
+    }
+
+    function updateBinnacleUI() {
+      const pkg = BOAT_PACKAGES[activeBoatKey];
+      document.getElementById("lblPortGearRpm").textContent = formatGearRpm(simState.port_cmd, pkg);
+      document.getElementById("lblStbdGearRpm").textContent = formatGearRpm(simState.stbd_cmd, pkg);
+    }
+
+    function setBowThrusterInput(dir) {
+      const pkg = BOAT_PACKAGES[activeBoatKey];
+      if (!pkg.thruster.installed) {
+        simState.thruster_cmd = 0;
+        return;
+      }
+      simState.thruster_cmd = dir;
+    }
+
+    function onJoystickTwist(val) {
+      const pkg = BOAT_PACKAGES[activeBoatKey];
+      if (!pkg.joystick.enabled) return;
+      simState.joy_z = parseFloat(val) / 100;
+      updateJoystickUI();
+    }
+
+    function zeroJoystick() {
+      simState.joy_x = 0;
+      simState.joy_y = 0;
+      simState.joy_z = 0;
+      document.getElementById("ctrlJoyTwist").value = 0;
+      updateJoystickUI();
+    }
+
+    function updateJoystickUI() {
+      document.getElementById("lblJoyXY").textContent =
+        `Crab X/Y: ${Math.round(simState.joy_x * 100)}%, ${Math.round(simState.joy_y * 100)}%`;
+      document.getElementById("lblJoyTwist").textContent =
+        `Yaw Z: ${Math.round(simState.joy_z * 100)}%`;
+      drawJoystickPad();
+    }
+
+    // Interactive 2D Joystick Pad Canvas
+    const joyCanvas = document.getElementById("joystickPadCanvas");
+    const joyCtx = joyCanvas.getContext("2d");
+    let joyDragging = false;
+
+    function drawJoystickPad() {
+      const w = joyCanvas.width, h = joyCanvas.height;
+      joyCtx.clearRect(0, 0, w, h);
+      joyCtx.strokeStyle = "rgba(148, 163, 184, 0.25)";
+      joyCtx.lineWidth = 1;
+      joyCtx.beginPath();
+      joyCtx.moveTo(w / 2, 4); joyCtx.lineTo(w / 2, h - 4);
+      joyCtx.moveTo(4, h / 2); joyCtx.lineTo(w - 4, h / 2);
+      joyCtx.stroke();
+
+      joyCtx.beginPath();
+      joyCtx.arc(w / 2, h / 2, 22, 0, Math.PI * 2);
+      joyCtx.stroke();
+
+      const px = w / 2 + simState.joy_x * 22;
+      const py = h / 2 - simState.joy_y * 22;
+
+      joyCtx.strokeStyle = "#a855f7";
+      joyCtx.lineWidth = 2.5;
+      joyCtx.beginPath();
+      joyCtx.moveTo(w / 2, h / 2);
+      joyCtx.lineTo(px, py);
+      joyCtx.stroke();
+
+      joyCtx.fillStyle = "#c084fc";
+      joyCtx.beginPath();
+      joyCtx.arc(px, py, 6.5, 0, Math.PI * 2);
+      joyCtx.fill();
+    }
+
+    function handleJoyPointer(e) {
+      const pkg = BOAT_PACKAGES[activeBoatKey];
+      if (!pkg.joystick.enabled) return;
+      const rect = joyCanvas.getBoundingClientRect();
+      const cx = (e.clientX - rect.left) / rect.width * 2 - 1;
+      const cy = -((e.clientY - rect.top) / rect.height * 2 - 1);
+      const mag = Math.hypot(cx, cy);
+      if (mag > 1) {
+        simState.joy_x = cx / mag;
+        simState.joy_y = cy / mag;
+      } else {
+        simState.joy_x = cx;
+        simState.joy_y = cy;
+      }
+      updateJoystickUI();
+    }
+
+    joyCanvas.addEventListener("mousedown", (e) => { joyDragging = true; handleJoyPointer(e); });
+    window.addEventListener("mousemove", (e) => { if (joyDragging) handleJoyPointer(e); });
+    window.addEventListener("mouseup", () => {
+      if (joyDragging) {
+        joyDragging = false;
+        simState.joy_x = 0;
+        simState.joy_y = 0;
+        updateJoystickUI();
+      }
+    });
+
+    function setManualWindSpeed(val) {
+      simState.wind_base_kts = parseFloat(val);
+    }
+
+    function triggerInstantGust() {
+      simState.gust_active_kts = Math.max(22.0 - simState.wind_base_kts, 8.0);
+      simState.gust_timer_s = 9.0;
+      showToast("🌬️ 22-Knot Lake St. Clair Thermal Gust Striking Broadside for 9.0s!");
+    }
+
+    function togglePauseSim() {
+      simPaused = !simPaused;
+      document.getElementById("btnPauseSim").textContent = simPaused ? "▶ Resume" : "⏸ Pause";
+    }
+
+    // =========================================================================
+    // KEYBOARD & 60 HZ WEB GAMEPAD API POLLING
+    // =========================================================================
+    const keysDown = {};
+    window.addEventListener("keydown", (e) => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+      const k = e.key.toLowerCase();
+      keysDown[k] = true;
+
+      if (k === "r") {
+        e.preventDefault();
+        triggerGolfSimRewind(15);
+      } else if (k === " ") {
+        e.preventDefault();
+        centerWheel();
+      } else if (k === "n") {
+        e.preventDefault();
+        allNeutralBinnacles();
+        zeroJoystick();
+      } else if (e.key === "Escape") {
+        resetScenario();
+      } else if (k === "w") {
+        stepBinnacleKey("port", 1);
+      } else if (k === "s") {
+        stepBinnacleKey("port", -1);
+      } else if (k === "i") {
+        stepBinnacleKey("stbd", 1);
+      } else if (k === "k") {
+        stepBinnacleKey("stbd", -1);
+      } else if (k === "q") {
+        setBowThrusterInput(-1);
+      } else if (k === "e") {
+        setBowThrusterInput(1);
+      }
+    });
+
+    window.addEventListener("keyup", (e) => {
+      const k = e.key.toLowerCase();
+      keysDown[k] = false;
+      if (k === "q" || k === "e") {
+        setBowThrusterInput(0);
+      }
+    });
+
+    function stepBinnacleKey(side, dir) {
+      const pkg = BOAT_PACKAGES[activeBoatKey];
+      if (side === "stbd" && pkg.controls.single_throttle) return;
+      const cur = side === "port" ? simState.port_cmd : simState.stbd_cmd;
+      let next = cur;
+      if (cur === 0) next = dir > 0 ? 18 : -18;
+      else if (cur === 18 && dir < 0) next = 0;
+      else if (cur === -18 && dir > 0) next = 0;
+      else next = Math.max(-100, Math.min(100, cur + dir * 14));
+      onBinnacleSlider(side, next);
+    }
+
+    function pollKeyboardAndGamepad(dt) {
+      // Smooth keyboard wheel turning & joystick twist
+      if (keysDown["a"] || keysDown["arrowleft"]) {
+        onWheelInput(Math.max(-32, simState.wheel_cmd_deg - 28 * dt));
+        document.getElementById("ctrlWheelSlider").value = simState.wheel_cmd_deg;
+      }
+      if (keysDown["d"] || keysDown["arrowright"]) {
+        onWheelInput(Math.min(32, simState.wheel_cmd_deg + 28 * dt));
+        document.getElementById("ctrlWheelSlider").value = simState.wheel_cmd_deg;
+      }
+      if (keysDown["j"]) {
+        onJoystickTwist(Math.max(-100, simState.joy_z * 100 - 80 * dt));
+        document.getElementById("ctrlJoyTwist").value = simState.joy_z * 100;
+      }
+      if (keysDown["l"]) {
+        onJoystickTwist(Math.min(100, simState.joy_z * 100 + 80 * dt));
+        document.getElementById("ctrlJoyTwist").value = simState.joy_z * 100;
+      }
+
+      // Poll Web Gamepad API (navigator.getGamepads())
+      if (!navigator.getGamepads) return;
+      const pads = navigator.getGamepads();
+      let activePad = null;
+      for (let i = 0; i < pads.length; i++) {
+        if (pads[i] && pads[i].connected) { activePad = pads[i]; break; }
+      }
+      const badge = document.getElementById("gamepadBadge");
+      if (!activePad) return;
+
+      badge.textContent = "Gamepad: Active (60Hz)";
+      badge.className = "text-[10px] mono uppercase px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 font-bold";
+
+      // Axis 0: Steering Wheel (-32..+32)
+      const ax0 = activePad.axes[0] || 0;
+      if (Math.abs(ax0) > 0.08) {
+        onWheelInput(ax0 * 32);
+        document.getElementById("ctrlWheelSlider").value = simState.wheel_cmd_deg;
+      }
+      // Axis 2 & 3: 3-Axis Joystick Crab X/Y (if enabled)
+      const pkg = BOAT_PACKAGES[activeBoatKey];
+      if (pkg.joystick.enabled && activePad.axes.length >= 4) {
+        const jx = activePad.axes[2] || 0;
+        const jy = -(activePad.axes[3] || 0);
+        if (Math.hypot(jx, jy) > 0.12) {
+          simState.joy_x = jx;
+          simState.joy_y = jy;
+          updateJoystickUI();
+        }
+      }
+      // Bumpers L1 (button 4) / R1 (button 5): Bow Thruster Port / Starboard
+      if (activePad.buttons[4] && activePad.buttons[4].pressed) setBowThrusterInput(-1);
+      else if (activePad.buttons[5] && activePad.buttons[5].pressed) setBowThrusterInput(1);
+      // Button 0 (A / Cross): 15s Golf Sim Rewind
+      if (activePad.buttons[0] && activePad.buttons[0].pressed && !window._gpRewindLatch) {
+        window._gpRewindLatch = true;
+        triggerGolfSimRewind(15);
+      } else if (activePad.buttons[0] && !activePad.buttons[0].pressed) {
+        window._gpRewindLatch = false;
+      }
+    }
+
+    // =========================================================================
+    // 50 HZ 3-DOF+ BEHAVIORAL MANEUVERING PHYSICS SOLVER
+    // =========================================================================
+    function stepPhysics50Hz(dt) {
+      const pkg = BOAT_PACKAGES[activeBoatKey];
+      simState.time_s += dt;
+
+      // 1. Steering Actuator Rate Limiting
+      const maxSteer = pkg.propulsion.max_steer_deg;
+      const targetSteer = Math.max(-maxSteer, Math.min(maxSteer, simState.wheel_cmd_deg));
+      const steerRate = 26.0; // deg/s
+      const steerDiff = targetSteer - simState.wheel_actual_deg;
+      if (Math.abs(steerDiff) <= steerRate * dt) {
+        simState.wheel_actual_deg = targetSteer;
+      } else {
+        simState.wheel_actual_deg += Math.sign(steerDiff) * steerRate * dt;
+      }
+
+      // 2. Shift Delay & First-Order Spool Lag per Engine
+      function updateEngineSpool(cmdPct, curGear, shiftTimer, curSpool) {
+        const targetGear = Math.abs(cmdPct) < 7 ? 0 : (cmdPct > 0 ? 1 : -1);
+        if (targetGear !== curGear) {
+          shiftTimer = pkg.propulsion.shift_delay_s;
+          curGear = targetGear;
+        }
+        let targetNorm = 0;
+        if (shiftTimer > 0) {
+          shiftTimer = Math.max(0, shiftTimer - dt);
+          targetNorm = 0;
+        } else if (curGear !== 0) {
+          // Idle detent is 18%, remaining 82% scales up to WOT with exponent
+          const throttleFrac = Math.max(0, (Math.abs(cmdPct) - 18) / 82);
+          const idleRatio = curGear > 0
+            ? (pkg.propulsion.idle_ahead_thrust_n / pkg.propulsion.max_ahead_thrust_n)
+            : (pkg.propulsion.idle_astern_thrust_n / pkg.propulsion.max_astern_thrust_n);
+          const mag = idleRatio + (1 - idleRatio) * Math.pow(throttleFrac, 1.85);
+          targetNorm = curGear * mag;
+        }
+        const tau = Math.abs(targetNorm) > Math.abs(curSpool) ? pkg.propulsion.spool_up_s : pkg.propulsion.spool_down_s;
+        curSpool += (targetNorm - curSpool) * Math.min(1, dt / Math.max(0.05, tau));
+        return { gear: curGear, timer: shiftTimer, spool: curSpool };
+      }
+
+      const pRes = updateEngineSpool(simState.port_cmd, simState.port_gear, simState.port_shift_timer, simState.port_spool);
+      simState.port_gear = pRes.gear;
+      simState.port_shift_timer = pRes.timer;
+      simState.port_spool = pRes.spool;
+
+      const sRes = updateEngineSpool(simState.stbd_cmd, simState.stbd_gear, simState.stbd_shift_timer, simState.stbd_spool);
+      simState.stbd_gear = sRes.gear;
+      simState.stbd_shift_timer = sRes.timer;
+      simState.stbd_spool = sRes.spool;
+
+      // 3. Propulsion Forces & Moments (Single I/O vs Twin Steerable Outboards vs Twin Fixed-Shaft Inboards + Rudders)
+      let Fx_prop = 0;
+      let Fy_prop = 0;
+      let Mz_prop = 0;
+
+      const steerRad = (simState.wheel_actual_deg * Math.PI) / 180;
+      const pThrustN = simState.port_spool >= 0
+        ? simState.port_spool * pkg.propulsion.max_ahead_thrust_n
+        : simState.port_spool * pkg.propulsion.max_astern_thrust_n;
+      const sThrustN = simState.stbd_spool >= 0
+        ? simState.stbd_spool * pkg.propulsion.max_ahead_thrust_n
+        : simState.stbd_spool * pkg.propulsion.max_astern_thrust_n;
+
+      if (pkg.propulsion.type === "single_sterndrive_duoprop") {
+        // 25' Single I/O: Steerable Duoprop at centerline (x = -3.05 m, y = 0)
+        // Turning wheel in Neutral produces zero force!
+        const fx = pThrustN * Math.cos(steerRad);
+        // Positive steerRad (wheel to Starboard) deflects outdrive tail to Starboard:
+        // Ahead thrust pushes stern to Port (-y) -> bow turns Starboard (+Mz)
+        // Astern thrust pulls stern to Starboard (+y) -> bow swings Port (-Mz)
+        const fy_vec = -pThrustN * Math.sin(steerRad);
+        const fy_walk = pThrustN >= 0
+          ? pThrustN * pkg.propulsion.prop_walk_ahead
+          : Math.abs(pThrustN) * pkg.propulsion.prop_walk_astern;
+        Fx_prop += fx;
+        Fy_prop += fy_vec + fy_walk;
+        Mz_prop += pkg.propulsion.longitudinal_x_m * (fy_vec + fy_walk);
+      } else if (pkg.propulsion.type === "twin_steerable_outboard") {
+        // 35' Pursuit S 358: Twin Counter-Rotating Steerable F425 XTOs at x = -4.62 m, y = ±0.432 m
+        const fx_p = pThrustN * Math.cos(steerRad);
+        const fy_p_vec = -pThrustN * Math.sin(steerRad);
+        const fy_p_walk = pThrustN < 0 ? Math.abs(pThrustN) * pkg.propulsion.prop_walk_astern : -pThrustN * pkg.propulsion.prop_walk_ahead;
+
+        const fx_s = sThrustN * Math.cos(steerRad);
+        const fy_s_vec = -sThrustN * Math.sin(steerRad);
+        const fy_s_walk = sThrustN < 0 ? -Math.abs(sThrustN) * pkg.propulsion.prop_walk_astern : sThrustN * pkg.propulsion.prop_walk_ahead;
+
+        Fx_prop += fx_p + fx_s;
+        Fy_prop += (fy_p_vec + fy_p_walk) + (fy_s_vec + fy_s_walk);
+        // Differential surge lever arm (Port at y = -0.432m, Stbd at y = +0.432m) + aft lateral vector moment
+        const yOff = pkg.propulsion.lateral_y_m;
+        Mz_prop += (fx_p - fx_s) * yOff + pkg.propulsion.longitudinal_x_m * ((fy_p_vec + fy_p_walk) + (fy_s_vec + fy_s_walk));
+      } else if (pkg.propulsion.type === "twin_fixed_shaft_inboard_rudder") {
+        // 52' Twin Fixed-Shaft Inboard Diesels: Propellers do NOT swivel!
+        // Rudders at x = -6.25 m only bite with forward prop wash or forward hull speed; minimal steering in reverse!
+        Fx_prop += pThrustN + sThrustN;
+
+        // Strong outboard-turning 28x34 5-blade astern prop walk (Port LH walks stern Stbd +y; Stbd RH walks stern Port -y)
+        const fy_p_walk = pThrustN < 0 ? Math.abs(pThrustN) * pkg.propulsion.prop_walk_astern : -pThrustN * pkg.propulsion.prop_walk_ahead;
+        const fy_s_walk = sThrustN < 0 ? -Math.abs(sThrustN) * pkg.propulsion.prop_walk_astern : sThrustN * pkg.propulsion.prop_walk_ahead;
+
+        // Twin Rudders: bite strongly on forward prop wash, only 12% effective in astern wash
+        const fwdWashP = pThrustN > 0 ? pThrustN * pkg.propulsion.rudder_wash_gain : Math.abs(pThrustN) * pkg.propulsion.rudder_astern_eff;
+        const fwdWashS = sThrustN > 0 ? sThrustN * pkg.propulsion.rudder_wash_gain : Math.abs(sThrustN) * pkg.propulsion.rudder_astern_eff;
+        const flowLift = Math.max(0, simState.u_mps) * 850.0;
+        const fy_rudder = -(fwdWashP + fwdWashS + flowLift) * Math.sin(steerRad) * 0.62;
+
+        Fy_prop += fy_p_walk + fy_s_walk + fy_rudder;
+        const yOff = pkg.propulsion.lateral_y_m; // 1.15 m wide shaft spacing
+        Mz_prop += (pThrustN - sThrustN) * yOff
+                 + pkg.propulsion.longitudinal_x_m * (fy_p_walk + fy_s_walk)
+                 + pkg.propulsion.rudder_x_m * fy_rudder;
+      }
+
+      // 4. Bow Thruster with 20s/30s AGM Battery Duty Cycle & Speed Fade (TC-04)
+      let Fy_thruster = 0;
+      let Mz_thruster = 0;
+      let thrEff = 1.0;
+
+      if (pkg.thruster.installed) {
+        if (simState.thruster_cutout_cooldown_s > 0) {
+          simState.thruster_cutout_cooldown_s = Math.max(0, simState.thruster_cutout_cooldown_s - dt);
+          simState.thruster_cmd = 0;
+        }
+        if (Math.abs(simState.thruster_cmd) > 0.05 && simState.thruster_cutout_cooldown_s <= 0) {
+          simState.thruster_continuous_s += dt;
+          if (simState.thruster_continuous_s >= pkg.thruster.cutout_s) {
+            simState.thruster_cutout_cooldown_s = 10.0;
+            showToast("⚠️ Bow Thruster 30s Thermal Cutout! 10-second cooldown required.");
+          }
+        } else {
+          simState.thruster_continuous_s = Math.max(0, simState.thruster_continuous_s - dt * 1.6);
+        }
+
+        // Voltage sag above 20s continuous
+        let dutyFactor = 1.0;
+        if (simState.thruster_cutout_cooldown_s > 0) {
+          dutyFactor = 0.0;
+        } else if (simState.thruster_continuous_s >= pkg.thruster.sag_onset_s) {
+          dutyFactor = 0.78;
+        }
+
+        // Tunnel cross-flow speed fade (TC-04: >=70% reduction at 3.5 kt)
+        const speedKts = Math.hypot(simState.u_mps, simState.v_mps) * 1.94384;
+        if (speedKts > pkg.thruster.full_eff_kts) {
+          const span = pkg.thruster.zero_eff_kts - pkg.thruster.full_eff_kts;
+          const f = Math.min(1, (speedKts - pkg.thruster.full_eff_kts) / span);
+          thrEff = Math.max(0.05, 1.0 - Math.pow(f, 1.35) * 0.88);
+        }
+
+        simState.thruster_spool += (simState.thruster_cmd - simState.thruster_spool) * Math.min(1, dt / 0.25);
+        Fy_thruster = simState.thruster_spool * pkg.thruster.max_thrust_n * dutyFactor * thrEff;
+        Mz_thruster = Fy_thruster * pkg.thruster.x_m;
+      }
+
+      // 5. Helm Master EX 3-Axis Joystick Allocator (Pursuit S 358 only, saturates in 20-kt beam wind per TC-05 & CB-03)
+      let Fx_joy = 0, Fy_joy = 0, Mz_joy = 0;
+      if (pkg.joystick.enabled && (Math.abs(simState.joy_x) > 0.05 || Math.abs(simState.joy_y) > 0.05 || Math.abs(simState.joy_z) > 0.05)) {
+        Fx_joy = simState.joy_y * pkg.joystick.max_surge_force_n;
+        Fy_joy = simState.joy_x * pkg.joystick.max_sway_force_n;
+        // Because twin outboards vector from the stern (x = -4.62m), lateral sway thrust at 1,800 RPM cap leaves residual bow blow-off in 20-kt wind
+        Mz_joy = simState.joy_z * pkg.joystick.max_yaw_moment_nm - simState.r_radps * 14500.0;
+      }
+
+      // 6. Dynamic Wind, CB-02 Mid-Pivot 22-kt Gust & CB-01 52-ft Neighbor Yacht Wind-Shadow Shear
+      if (activeScenarioKey === "CB-02" && !simState.cb02_triggered) {
+        // Trigger 22-kt broadside gust when captain rotates past 45° into the pivot
+        if (simState.psi_rad < Math.PI * 0.28) {
+          simState.cb02_triggered = true;
+          triggerInstantGust();
+        }
+      }
+      if (simState.gust_timer_s > 0) {
+        simState.gust_timer_s = Math.max(0, simState.gust_timer_s - dt);
+        if (simState.gust_timer_s === 0) simState.gust_active_kts = 0;
+      }
+
+      const ambientWindKts = simState.wind_base_kts + simState.gust_active_kts;
+      // Compute world Y coordinates of Bow section (+0.28*LOA) and Stern section (-0.28*LOA)
+      const cosPsi = Math.cos(simState.psi_rad);
+      const sinPsi = Math.sin(simState.psi_rad);
+      const bowWorldY = simState.y_m + cosPsi * (pkg.loa_m * 0.28);
+      const sternWorldY = simState.y_m - cosPsi * (pkg.loa_m * 0.28);
+
+      // CB-01 Spatial Wind Shadow: The neighboring 52-ft flybridge yacht sits alongside the slip from Y = 0 to Y = SLIP_LENGTH_M + 1.5m.
+      // Any hull section inside Y < SLIP_LENGTH_M + 1.2m enters the 52' yacht's wind shadow (wind drops to 20% of ambient)!
+      const shadowBoundaryY = SLIP_LENGTH_M + 1.2;
+      const bowExposure = bowWorldY < shadowBoundaryY ? Math.max(0.20, (bowWorldY - (shadowBoundaryY - 4.0)) / 4.0) : 1.0;
+      const sternExposure = sternWorldY < shadowBoundaryY ? Math.max(0.20, (sternWorldY - (shadowBoundaryY - 4.0)) / 4.0) : 1.0;
+
+      simState.bow_wind_kts = ambientWindKts * Math.min(1, Math.max(0.2, bowExposure));
+      simState.stern_wind_kts = ambientWindKts * Math.min(1, Math.max(0.2, sternExposure));
+
+      // Wind vector in world coordinates (Wind FROM 270° West blows toward +X East)
+      const windToRad = ((simState.wind_from_deg + 180) * Math.PI) / 180;
+      const wx_world = Math.sin(windToRad);
+      const wy_world = Math.cos(windToRad);
+
+      // Project wind into vessel body frame (Ahead +u, Starboard +v)
+      // At psi = 0 (Bow North +Y, Stern South -Y): Ahead is (0, 1), Starboard is (1, 0)
+      const w_ahead_unit = wx_world * sinPsi + wy_world * cosPsi;
+      const w_stbd_unit = wx_world * cosPsi - wy_world * sinPsi;
+
+      const rho_air = 1.225;
+      const v_bow_mps = simState.bow_wind_kts * 0.51444;
+      const v_stern_mps = simState.stern_wind_kts * 0.51444;
+
+      const q_bow = 0.5 * rho_air * v_bow_mps * v_bow_mps;
+      const q_stern = 0.5 * rho_air * v_stern_mps * v_stern_mps;
+
+      const Fy_aero_bow = q_bow * pkg.aero.lateral_area_fwd_m2 * pkg.aero.cy_90 * w_stbd_unit;
+      const Fy_aero_stern = q_stern * pkg.aero.lateral_area_aft_m2 * pkg.aero.cy_90 * w_stbd_unit;
+      const Fx_aero = 0.5 * (q_bow + q_stern) * pkg.aero.frontal_area_m2 * pkg.aero.cd_0 * w_ahead_unit;
+      const Fy_aero = Fy_aero_bow + Fy_aero_stern;
+
+      // Split Bow/Stern Wind Moment + Forward CE Weathercocking Moment (Bow blows downwind faster than stern!)
+      const armFwd = pkg.lwl_m * 0.24;
+      const armAft = -pkg.lwl_m * 0.22;
+      const Mz_aero = Fy_aero_bow * armFwd + Fy_aero_stern * armAft + (Fy_aero_bow + Fy_aero_stern) * pkg.aero.effective_aero_lever_arm_m * 0.55;
+
+      // Update Joystick Saturation Percentage
+      if (pkg.joystick.enabled && Math.abs(simState.joy_x) > 0.05) {
+        simState.joy_saturation_pct = Math.min(100, Math.round((Math.abs(Fy_aero) / pkg.joystick.max_sway_force_n) * 100));
+      } else {
+        simState.joy_saturation_pct = 0;
+      }
+
+      // 7. Hydrodynamic Damping & Apparent Pivot-Point Migration
+      const d = pkg.hydrodynamic_damping;
+      const p = pkg.pivot_point_and_coupling;
+      const asternMult = simState.u_mps < 0 ? d.surge_astern_drag_mult : 1.0;
+
+      const Fx_hydro = -d.surge_linear_xu * simState.u_mps - d.surge_quadratic_xuu * Math.abs(simState.u_mps) * simState.u_mps * asternMult;
+      const Fy_hydro = -d.sway_linear_yv * simState.v_mps - d.sway_quadratic_yvv * Math.abs(simState.v_mps) * simState.v_mps
+                       - p.yaw_to_sway_coupling_yr * simState.r_radps * 0.25;
+      const Mz_hydro = -d.yaw_linear_nr * simState.r_radps - d.yaw_quadratic_nrr * Math.abs(simState.r_radps) * simState.r_radps
+                       + p.munk_moment_sway_to_yaw_nv * simState.v_mps * simState.u_mps * 0.35;
+
+      // Apparent Pivot Point Longitudinal Migration
+      const uFrac = Math.max(-1, Math.min(1, simState.u_mps / p.pivot_migration_saturation_speed_mps));
+      simState.pivot_x_m = p.clr_at_rest_from_cg_m + (uFrac >= 0 ? uFrac * p.pivot_forward_max_offset_m : -uFrac * p.pivot_astern_max_offset_m);
+
+      // 8. 3-DOF Acceleration & Velocity Integration
+      const m = pkg.mass_and_inertia;
+      const du = (Fx_prop + Fx_joy + Fx_aero + Fx_hydro) / m.effective_mass_surge_kg;
+      const dv = (Fy_prop + Fy_thruster + Fy_joy + Fy_aero + Fy_hydro) / m.effective_mass_sway_kg;
+      const dr = (Mz_prop + Mz_thruster + Mz_joy + Mz_aero + Mz_hydro) / m.effective_yaw_inertia_kg_m2;
+
+      simState.u_mps += du * dt;
+      simState.v_mps += dv * dt;
+      simState.r_radps += dr * dt;
+
+      // World Position Update
+      // Ahead (+u) is along (sinPsi, cosPsi); Starboard (+v) is along (cosPsi, -sinPsi)
+      const vx_world = simState.u_mps * sinPsi + simState.v_mps * cosPsi;
+      const vy_world = simState.u_mps * cosPsi - simState.v_mps * sinPsi;
+
+      simState.x_m += vx_world * dt;
+      simState.y_m += vy_world * dt;
+      simState.psi_rad += simState.r_radps * dt;
+
+      // Visual Roll & Pitch Spring
+      const targetRoll = Math.max(-0.14, Math.min(0.14, (Fy_thruster + Fy_aero * 0.6 - Fy_prop * 0.4) / 28000));
+      simState.roll_rad += (targetRoll - simState.roll_rad) * Math.min(1, dt * 3.5);
+      const targetPitch = Math.max(-0.06, Math.min(0.06, (Fx_prop * 0.5) / 140000));
+      simState.pitch_rad += (targetPitch - simState.pitch_rad) * Math.min(1, dt * 4.0);
+
+      // 9. Piling & Seawall Collision / Clearance Geometry
+      const halfSlipM = (pkg.slip_width_ft * 0.3048) / 2;
+      const halfBeamM = pkg.beam_m / 2;
+      const hullHalfLen = pkg.loa_m / 2;
+
+      // Compute transverse hull envelope at the outer pilings / inside the slip
+      const sinAbs = Math.abs(Math.sin(simState.psi_rad));
+      const effectiveHalfWidthM = halfBeamM * Math.abs(Math.cos(simState.psi_rad)) + hullHalfLen * 0.35 * sinAbs;
+
+      // Port piling is at x = -halfSlipM (when facing North 000° out of slip, Port side of boat is West -X, Starboard side is East +X)
+      const portClearM = (simState.x_m - effectiveHalfWidthM) - (-halfSlipM);
+      const stbdClearM = halfSlipM - (simState.x_m + effectiveHalfWidthM);
+
+      simState.port_clearance_in = portClearM * 39.3701;
+      simState.stbd_clearance_in = stbdClearM * 39.3701;
+
+      const sternWorldY_edge = simState.y_m - cosPsi * hullHalfLen;
+      simState.stern_seawall_ft = Math.max(0, sternWorldY_edge * 3.28084);
+
+      // Gentle elastic fender bounce if hull contacts outer pilings or main seawall
+      if (sternWorldY_edge < SLIP_LENGTH_M + 0.5 && sternWorldY_edge > -1.0) {
+        if (simState.port_clearance_in < 0) {
+          simState.x_m += (-simState.port_clearance_in / 39.3701) * 0.5;
+          simState.v_mps = Math.abs(simState.v_mps) * 0.35;
+          simState.r_radps *= 0.5;
+        }
+        if (simState.stbd_clearance_in < 0) {
+          simState.x_m -= (-simState.stbd_clearance_in / 39.3701) * 0.5;
+          simState.v_mps = -Math.abs(simState.v_mps) * 0.35;
+          simState.r_radps *= 0.5;
+        }
+      }
+      if (sternWorldY_edge < 0.3) {
+        simState.y_m += (0.3 - sternWorldY_edge);
+        simState.u_mps = Math.max(0, simState.u_mps);
+      }
+
+      // 10. Record into 50 Hz Ring Buffer & Ghost Track
+      pushRingBuffer();
+      ghostSampleAccum += dt;
+      if (ghostSampleAccum >= 0.25) {
+        ghostSampleAccum = 0;
+        ghostTrack.push({ t: simState.time_s, x: simState.x_m, y: simState.y_m, psi: simState.psi_rad });
+        if (ghostTrack.length > 240) ghostTrack.shift();
+      }
+    }
+
+    // =========================================================================
+    // SELF-CONTAINED 60 FPS 3D PERSPECTIVE MARINA & VESSEL RENDERER
+    // =========================================================================
+    const canvas = document.getElementById("sim3dCanvas");
+    const ctx = canvas.getContext("2d");
+
+    let camMode = "chase"; // 'chase' | 'quarter' | 'overhead' | 'helm_aft'
+    let camOrbitYaw = 0.28;   // Radians offset
+    let camOrbitPitch = 0.52; // Elevation angle
+    let camDist = 26.0;
+    let helmGazeDeg = -135;   // Looking 135° Port Aft over shoulder
+
+    const overlays = {
+      pivot: true,
+      vectors: true,
+      windShadow: true,
+      ghostTrack: true
+    };
+
+    function syncOverlays() {
+      overlays.pivot = document.getElementById("ovPivot").checked;
+      overlays.vectors = document.getElementById("ovVectors").checked;
+      overlays.windShadow = document.getElementById("ovWindShadow").checked;
+      overlays.ghostTrack = document.getElementById("ovGhostTrack").checked;
+    }
+
+    function setCameraMode(mode) {
+      camMode = mode;
+      const map = {
+        chase: "camBtnChase",
+        quarter: "camBtnQuarter",
+        overhead: "camBtnOverhead",
+        helm_aft: "camBtnHelm"
+      };
+      Object.entries(map).forEach(([k, id]) => {
+        const btn = document.getElementById(id);
+        if (k === mode) {
+          btn.className = "cam-btn px-2 py-1.5 rounded text-[11px] font-bold bg-sky-500/25 text-white border border-sky-400/60 text-left";
+        } else {
+          btn.className = "cam-btn px-2 py-1.5 rounded text-[11px] font-semibold bg-slate-900/80 text-slate-300 border border-slate-800 hover:bg-slate-800 text-left";
+        }
+      });
+
+      const sub = document.getElementById("helmLookSubBar");
+      if (mode === "helm_aft") {
+        sub.classList.remove("hidden");
+      } else {
+        sub.classList.add("hidden");
+      }
+
+      if (mode === "chase") {
+        camOrbitYaw = 0.26;
+        camOrbitPitch = 0.52;
+        camDist = 25.0;
+      } else if (mode === "quarter") {
+        camOrbitYaw = -0.65;
+        camOrbitPitch = 0.38;
+        camDist = 21.0;
+      } else if (mode === "overhead") {
+        camOrbitYaw = 0.0;
+        camOrbitPitch = 1.46;
+        camDist = 36.0;
+      }
+    }
+
+    function setHelmGaze(deg) {
+      helmGazeDeg = deg;
+    }
+
+    // Mouse Drag Orbit on 3D Canvas
+    let isOrbitDragging = false;
+    let lastMouseX = 0, lastMouseY = 0;
+    canvas.addEventListener("mousedown", (e) => {
+      isOrbitDragging = true;
+      lastMouseX = e.clientX;
+      lastMouseY = e.clientY;
+    });
+    window.addEventListener("mousemove", (e) => {
+      if (!isOrbitDragging) return;
+      const dx = e.clientX - lastMouseX;
+      const dy = e.clientY - lastMouseY;
+      lastMouseX = e.clientX;
+      lastMouseY = e.clientY;
+      if (camMode === "helm_aft") {
+        helmGazeDeg = Math.max(-175, Math.min(175, helmGazeDeg + dx * 0.45));
+      } else {
+        camOrbitYaw -= dx * 0.007;
+        camOrbitPitch = Math.max(0.18, Math.min(1.48, camOrbitPitch + dy * 0.006));
+      }
+    });
+    window.addEventListener("mouseup", () => { isOrbitDragging = false; });
+    canvas.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      camDist = Math.max(12, Math.min(55, camDist + e.deltaY * 0.02));
+    }, { passive: false });
+
+    // 3D Camera Matrix & Projection Helper
+    let camPos = { x: 0, y: 30, z: 14 };
+    let camFwd = { x: 0, y: -1, z: -0.4 };
+    let camRight = { x: 1, y: 0, z: 0 };
+    let camUp = { x: 0, y: 0, z: 1 };
+    let focalLen = 850;
+
+    function setupCamera3D(W, H, pkg) {
+      const cosP = Math.cos(simState.psi_rad);
+      const sinP = Math.sin(simState.psi_rad);
+
+      if (camMode === "helm_aft") {
+        // 1st-Person Standing Helm Sightline (Looking over shoulder at transom corners & pilings at -28° pitch!)
+        const eye = pkg.helm_eye_m;
+        const wx = simState.x_m + eye.x * sinP + eye.y * cosP;
+        const wy = simState.y_m + eye.x * cosP - eye.y * sinP;
+        const wz = eye.z + 0.35;
+        camPos = { x: wx, y: wy, z: wz };
+
+        const lookYaw = simState.psi_rad + (helmGazeDeg * Math.PI) / 180;
+        const lookPitch = -0.36; // Downward -21° to -35° pitch to see transom corners, F425 cowlings, prop wash & pilings
+        camFwd = {
+          x: Math.sin(lookYaw) * Math.cos(lookPitch),
+          y: Math.cos(lookYaw) * Math.cos(lookPitch),
+          z: Math.sin(lookPitch)
+        };
+      } else {
+        // Elevated 3rd-Person 3D Marina View
+        const targetX = simState.x_m * 0.65;
+        const targetY = Math.min(22, Math.max(8, simState.y_m * 0.72));
+        const targetZ = 0.8;
+
+        const scaleDist = camDist * (pkg.id === "cruiser-52-2023" ? 1.18 : 1.0);
+        const horizDist = scaleDist * Math.cos(camOrbitPitch);
+        const vertDist = scaleDist * Math.sin(camOrbitPitch);
+
+        camPos = {
+          x: targetX + Math.sin(camOrbitYaw) * horizDist,
+          y: targetY + Math.cos(camOrbitYaw) * horizDist,
+          z: targetZ + vertDist
+        };
+
+        const dx = targetX - camPos.x;
+        const dy = targetY - camPos.y;
+        const dz = targetZ - camPos.z;
+        const len = Math.hypot(dx, dy, dz) || 1;
+        camFwd = { x: dx / len, y: dy / len, z: dz / len };
+      }
+
+      // Compute Right = Fwd x WorldUp(0,0,1)
+      let rx = camFwd.y * 1 - camFwd.z * 0;
+      let ry = camFwd.z * 0 - camFwd.x * 1;
+      let rz = 0;
+      let rLen = Math.hypot(rx, ry, rz);
+      if (rLen < 0.001) { rx = 1; ry = 0; rz = 0; rLen = 1; }
+      camRight = { x: rx / rLen, y: ry / rLen, z: rz / rLen };
+
+      // Compute Up = Right x Fwd
+      camUp = {
+        x: camRight.y * camFwd.z - camRight.z * camFwd.y,
+        y: camRight.z * camFwd.x - camRight.x * camFwd.z,
+        z: camRight.x * camFwd.y - camRight.y * camFwd.x
+      };
+
+      focalLen = Math.min(W, H) * (camMode === "helm_aft" ? 0.92 : 1.08);
+    }
+
+    function project3D(wx, wy, wz, W, H) {
+      const dx = wx - camPos.x;
+      const dy = wy - camPos.y;
+      const dz = wz - camPos.z;
+
+      const cz = dx * camFwd.x + dy * camFwd.y + dz * camFwd.z;
+      if (cz < 0.35) return null; // Behind near clipping plane
+
+      const cx = dx * camRight.x + dy * camRight.y + dz * camRight.z;
+      const cy = dx * camUp.x + dy * camUp.y + dz * camUp.z;
+
+      return {
+        x: W * 0.5 + (cx / cz) * focalLen,
+        y: H * 0.5 - (cy / cz) * focalLen,
+        depth: cz,
+        scale: focalLen / cz
+      };
+    }
+
+    function drawPoly3D(pts3D, fillStyle, strokeStyle, lineWidth = 1.5) {
+      const W = canvas.width, H = canvas.height;
+      const proj = [];
+      for (let i = 0; i < pts3D.length; i++) {
+        const p = project3D(pts3D[i].x, pts3D[i].y, pts3D[i].z, W, H);
+        if (!p) return;
+        proj.push(p);
+      }
+      ctx.beginPath();
+      ctx.moveTo(proj[0].x, proj[0].y);
+      for (let i = 1; i < proj.length; i++) {
+        ctx.lineTo(proj[i].x, proj[i].y);
+      }
+      ctx.closePath();
+      if (fillStyle) {
+        ctx.fillStyle = fillStyle;
+        ctx.fill();
+      }
+      if (strokeStyle) {
+        ctx.strokeStyle = strokeStyle;
+        ctx.lineWidth = lineWidth;
+        ctx.stroke();
+      }
+    }
+
+    function drawLine3D(p1, p2, strokeStyle, lineWidth = 2, dash = []) {
+      const W = canvas.width, H = canvas.height;
+      const a = project3D(p1.x, p1.y, p1.z, W, H);
+      const b = project3D(p2.x, p2.y, p2.z, W, H);
+      if (!a || !b) return;
+      ctx.save();
+      ctx.setLineDash(dash);
+      ctx.strokeStyle = strokeStyle;
+      ctx.lineWidth = lineWidth;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Transform Vessel Local Coordinates (x_fwd, y_stbd, z_up) to World Coordinates
+    function boatToWorld(lx, ly, lz) {
+      const cosP = Math.cos(simState.psi_rad);
+      const sinP = Math.sin(simState.psi_rad);
+      // Include visual roll and pitch
+      const rz = lz - ly * Math.sin(simState.roll_rad) + lx * Math.sin(simState.pitch_rad);
+      return {
+        x: simState.x_m + lx * sinP + ly * cosP,
+        y: simState.y_m + lx * cosP - ly * sinP,
+        z: rz
+      };
+    }
+
+    // Draw a 3D Timber Piling with Top Cap & Optional Inch-Accurate Clearance Badge
+    function drawTimberPiling3D(px, py, radiusM, heightM, badgeText, badgeColor) {
+      const W = canvas.width, H = canvas.height;
+      const base = project3D(px, py, 0, W, H);
+      const top = project3D(px, py, heightM, W, H);
+      if (!base || !top) return;
+
+      const rBase = Math.max(3, radiusM * base.scale);
+      const rTop = Math.max(3, radiusM * top.scale);
+
+      // Waterline reflection ring
+      ctx.strokeStyle = "rgba(148, 163, 184, 0.35)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.ellipse(base.x, base.y, rBase * 1.4, rBase * 0.65, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Piling trunk cylinder
+      const grad = ctx.createLinearGradient(base.x - rBase, base.y, base.x + rBase, base.y);
+      grad.addColorStop(0, "#3e2723");
+      grad.addColorStop(0.45, "#795548");
+      grad.addColorStop(1, "#271815");
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(base.x - rBase, base.y);
+      ctx.lineTo(top.x - rTop, top.y);
+      ctx.lineTo(top.x + rTop, top.y);
+      ctx.lineTo(base.x + rBase, base.y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "#a1887f";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // White/Weathered Piling Top Cone Cap
+      ctx.fillStyle = "#e2e8f0";
+      ctx.beginPath();
+      ctx.ellipse(top.x, top.y, rTop, rTop * 0.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Floating Real-Time Clearance Callout Badge
+      if (badgeText) {
+        const bx = top.x;
+        const by = top.y - 16;
+        ctx.font = "bold 11px 'JetBrains Mono', monospace";
+        const tw = ctx.measureText(badgeText).width + 12;
+        ctx.fillStyle = "rgba(9, 14, 22, 0.9)";
+        ctx.strokeStyle = badgeColor;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(bx - tw / 2, by - 11, tw, 18, 5);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = badgeColor;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(badgeText, bx, by - 2);
+      }
+    }
+
+    // Draw the Neighboring 52-Ft Flybridge Motor Yacht (Windward of Target Slip) creating CB-01 Wind Shadow
+    function drawNeighbor52Yacht3D(halfSlipM) {
+      const nx = -halfSlipM - 4.1; // Moored in the adjacent windward slip (West -X)
+      const ny = 7.4;              // Stern near main dock, bow at Y = 15.2m
+      const hL = 7.8;              // 52 ft LOA
+      const hB = 2.3;              // 15.2 ft beam
+
+      // Hull lower box
+      const deckPts = [
+        { x: nx - hB, y: ny - hL, z: 1.65 },
+        { x: nx + hB, y: ny - hL, z: 1.65 },
+        { x: nx + hB * 0.85, y: ny + hL * 0.65, z: 1.85 },
+        { x: nx, y: ny + hL, z: 2.0 },
+        { x: nx - hB * 0.85, y: ny + hL * 0.65, z: 1.85 }
+      ];
+      const wlPts = [
+        { x: nx - hB, y: ny - hL, z: 0.0 },
+        { x: nx + hB, y: ny - hL, z: 0.0 },
+        { x: nx + hB * 0.85, y: ny + hL * 0.65, z: 0.0 },
+        { x: nx, y: ny + hL * 0.95, z: 0.0 },
+        { x: nx - hB * 0.85, y: ny + hL * 0.65, z: 0.0 }
+      ];
+
+      // Starboard Hull Wall (facing our slip)
+      drawPoly3D(
+        [wlPts[1], wlPts[2], deckPts[2], deckPts[1]],
+        "rgba(30, 41, 59, 0.92)",
+        "rgba(148, 163, 184, 0.45)",
+        1.5
+      );
+      drawPoly3D(
+        [wlPts[2], wlPts[3], deckPts[3], deckPts[2]],
+        "rgba(39, 52, 73, 0.92)",
+        "rgba(148, 163, 184, 0.45)",
+        1.5
+      );
+      drawPoly3D(deckPts, "rgba(51, 65, 85, 0.9)", "rgba(203, 213, 225, 0.5)", 1.5);
+
+      // Tall Enclosed Flybridge Superstructure (casts the wind shadow!)
+      const fbBase = [
+        { x: nx - hB * 0.78, y: ny - hL * 0.55, z: 1.7 },
+        { x: nx + hB * 0.78, y: ny - hL * 0.55, z: 1.7 },
+        { x: nx + hB * 0.72, y: ny + hL * 0.35, z: 1.75 },
+        { x: nx - hB * 0.72, y: ny + hL * 0.35, z: 1.75 }
+      ];
+      const fbTop = [
+        { x: nx - hB * 0.68, y: ny - hL * 0.48, z: 3.85 },
+        { x: nx + hB * 0.68, y: ny - hL * 0.48, z: 3.85 },
+        { x: nx + hB * 0.60, y: ny + hL * 0.22, z: 3.85 },
+        { x: nx - hB * 0.60, y: ny + hL * 0.22, z: 3.85 }
+      ];
+      drawPoly3D([fbBase[1], fbBase[2], fbTop[2], fbTop[1]], "rgba(71, 85, 105, 0.85)", "#94a3b8", 1.2);
+      drawPoly3D([fbBase[2], fbBase[3], fbTop[3], fbTop[2]], "rgba(51, 65, 85, 0.85)", "#94a3b8", 1.2);
+      drawPoly3D(fbTop, "rgba(100, 116, 139, 0.9)", "#cbd5e1", 1.5);
+
+      // Label above the 52' Neighbor Yacht
+      const W = canvas.width, H = canvas.height;
+      const lblPt = project3D(nx, ny, 4.4, W, H);
+      if (lblPt) {
+        ctx.font = "bold 10px 'Inter', sans-serif";
+        ctx.fillStyle = "rgba(245, 158, 11, 0.92)";
+        ctx.textAlign = "center";
+        ctx.fillText("52' Windward Neighbor Yacht (Casts Slip Wind-Shadow Lee)", lblPt.x, lblPt.y);
+      }
+    }
+
+    // Draw Animated Prop-Wash Aeration Bubble Plumes & Bow Thruster Jet Plume
+    function drawPropWashAndThrusterPlumes3D(pkg) {
+      const W = canvas.width, H = canvas.height;
+      const t = simState.time_s;
+
+      function renderPlume(localX, localY, dirAngleRad, thrustNorm, isAstern) {
+        if (Math.abs(thrustNorm) < 0.04) return;
+        const count = 14;
+        const maxLen = (2.4 + Math.abs(thrustNorm) * 4.5) * (isAstern ? 0.78 : 1.0);
+        for (let i = 0; i < count; i++) {
+          const phase = ((t * 2.2 + i / count) % 1.0);
+          const dist = phase * maxLen;
+          const spread = (Math.sin(i * 7.3 + t * 5) * 0.28) * phase;
+          const px = localX + (isAstern ? 1 : -1) * Math.cos(dirAngleRad) * dist - Math.sin(dirAngleRad) * spread;
+          const py = localY + (isAstern ? -1 : 1) * Math.sin(dirAngleRad) * dist + Math.cos(dirAngleRad) * spread;
+          const worldPt = boatToWorld(px, py, 0.04);
+          const scr = project3D(worldPt.x, worldPt.y, worldPt.z, W, H);
+          if (!scr) continue;
+          const rad = Math.max(2, (0.18 + phase * 0.38) * scr.scale);
+          ctx.fillStyle = isAstern
+            ? `rgba(125, 211, 252, ${(1 - phase) * 0.65})`
+            : `rgba(224, 242, 254, ${(1 - phase) * 0.62})`;
+          ctx.beginPath();
+          ctx.arc(scr.x, scr.y, rad, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      const steerRad = pkg.propulsion.steerable_props ? (simState.wheel_actual_deg * Math.PI) / 180 : 0;
+      if (pkg.propulsion.count === 1) {
+        renderPlume(pkg.propulsion.longitudinal_x_m, 0, steerRad, simState.port_spool, simState.port_spool < 0);
+      } else {
+        renderPlume(pkg.propulsion.longitudinal_x_m, -pkg.propulsion.lateral_y_m, steerRad, simState.port_spool, simState.port_spool < 0);
+        renderPlume(pkg.propulsion.longitudinal_x_m, pkg.propulsion.lateral_y_m, steerRad, simState.stbd_spool, simState.stbd_spool < 0);
+      }
+
+      // Bow Thruster Lateral Jet Plume
+      if (pkg.thruster.installed && Math.abs(simState.thruster_spool) > 0.05) {
+        const jetSign = simState.thruster_spool > 0 ? -1 : 1; // Pushing bow to Starboard (+1) shoots water jet out Port (-Y)
+        for (let i = 0; i < 12; i++) {
+          const phase = ((t * 3.0 + i / 12) % 1.0);
+          const dist = 0.6 + phase * 3.2;
+          const worldPt = boatToWorld(pkg.thruster.x_m + Math.sin(i * 4 + t) * 0.2, jetSign * dist, 0.05);
+          const scr = project3D(worldPt.x, worldPt.y, worldPt.z, W, H);
+          if (!scr) continue;
+          const rad = Math.max(2, (0.16 + phase * 0.32) * scr.scale);
+          ctx.fillStyle = `rgba(52, 211, 153, ${(1 - phase) * 0.72})`;
+          ctx.beginPath();
+          ctx.arc(scr.x, scr.y, rad, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    // Draw the Active 3D Boat Hull, Deck, Hardtop/Windshield, and Swiveling Outboards/Outdrive/Rudders
+    function drawActiveBoat3D(pkg) {
+      const hL = pkg.loa_m * 0.5;
+      const hB = pkg.beam_m * 0.5;
+      const zFreeBow = pkg.id === "cruiser-52-2023" ? 1.85 : (pkg.id === "pursuit-s358-2023" ? 1.42 : 1.02);
+      const zFreeStern = pkg.id === "cruiser-52-2023" ? 1.32 : (pkg.id === "pursuit-s358-2023" ? 0.94 : 0.78);
+
+      // 7-Point Hull Contour (Transom Port -> Mid Port -> Bow Flare Port -> Stem -> Bow Flare Stbd -> Mid Stbd -> Transom Stbd)
+      const localContour = [
+        { x: -hL,        y: -hB * 0.88, z: zFreeStern },
+        { x: -hL * 0.15, y: -hB,        z: (zFreeStern + zFreeBow) * 0.5 },
+        { x:  hL * 0.55, y: -hB * 0.74, z: zFreeBow * 0.94 },
+        { x:  hL,        y:  0.0,       z: zFreeBow },
+        { x:  hL * 0.55, y:  hB * 0.74, z: zFreeBow * 0.94 },
+        { x: -hL * 0.15, y:  hB,        z: (zFreeStern + zFreeBow) * 0.5 },
+        { x: -hL,        y:  hB * 0.88, z: zFreeStern }
+      ];
+
+      const deckWorld = localContour.map(p => boatToWorld(p.x, p.y, p.z));
+      const wlWorld = localContour.map(p => boatToWorld(p.x * 0.97, p.y * 0.92, 0.02));
+
+      // Draw Hull Side Panels
+      for (let i = 0; i < localContour.length; i++) {
+        const next = (i + 1) % localContour.length;
+        const sideFill = i < 3 ? pkg.hullColors.topside : "#17253b";
+        drawPoly3D([wlWorld[i], wlWorld[next], deckWorld[next], deckWorld[i]], sideFill, pkg.hullColors.accent, 1.5);
+      }
+
+      // Draw Main Deck Surface
+      drawPoly3D(deckWorld, pkg.hullColors.deck, pkg.hullColors.accent, 1.8);
+
+      // Draw Windshield & Hardtop / Superstructure according to Boat Package
+      if (pkg.id === "sterndrive-25-2023") {
+        // 25' Open-Bow Runabout: Walkthrough Windshield only (no hardtop)
+        const wsBase = [
+          boatToWorld(-0.4, -hB * 0.78, zFreeStern + 0.1),
+          boatToWorld(0.65, -hB * 0.72, zFreeBow * 0.9),
+          boatToWorld(0.65,  hB * 0.72, zFreeBow * 0.9),
+          boatToWorld(-0.4,  hB * 0.78, zFreeStern + 0.1)
+        ];
+        const wsTop = [
+          boatToWorld(-0.1, -hB * 0.68, zFreeBow + 0.55),
+          boatToWorld(0.45, -hB * 0.62, zFreeBow + 0.55),
+          boatToWorld(0.45,  hB * 0.62, zFreeBow + 0.55),
+          boatToWorld(-0.1,  hB * 0.68, zFreeBow + 0.55)
+        ];
+        drawPoly3D([wsBase[1], wsBase[2], wsTop[2], wsTop[1]], "rgba(56, 189, 248, 0.38)", "#38bdf8", 1.5);
+      } else if (pkg.id === "pursuit-s358-2023") {
+        // 35' Pursuit S 358: Fiberglass Hardtop on 4 Support Legs + 3-Sided Glass Windshield
+        const htZ = 2.65;
+        const htPts = [
+          boatToWorld(-1.95, -hB * 0.72, htZ),
+          boatToWorld( 1.25, -hB * 0.68, htZ),
+          boatToWorld( 1.25,  hB * 0.68, htZ),
+          boatToWorld(-1.95,  hB * 0.72, htZ)
+        ];
+        // Support legs
+        drawLine3D(boatToWorld(-1.8, -hB * 0.65, zFreeStern), htPts[0], "#94a3b8", 2.5);
+        drawLine3D(boatToWorld( 1.0, -hB * 0.62, zFreeStern + 0.2), htPts[1], "#94a3b8", 2.5);
+        drawLine3D(boatToWorld( 1.0,  hB * 0.62, zFreeStern + 0.2), htPts[2], "#94a3b8", 2.5);
+        drawLine3D(boatToWorld(-1.8,  hB * 0.65, zFreeStern), htPts[3], "#94a3b8", 2.5);
+        drawPoly3D(htPts, "rgba(241, 245, 249, 0.88)", "#38bdf8", 1.6);
+      } else {
+        // 52' Twin-Inboard Express Cruiser: Long Enclosed Express Deckhouse Salon + Coupe Roof
+        const roofZ = 3.35;
+        const salonBase = [
+          boatToWorld(-3.6, -hB * 0.78, zFreeStern),
+          boatToWorld( 2.4, -hB * 0.72, zFreeBow * 0.9),
+          boatToWorld( 2.4,  hB * 0.72, zFreeBow * 0.9),
+          boatToWorld(-3.6,  hB * 0.78, zFreeStern)
+        ];
+        const salonRoof = [
+          boatToWorld(-3.1, -hB * 0.68, roofZ),
+          boatToWorld( 1.5, -hB * 0.62, roofZ),
+          boatToWorld( 1.5,  hB * 0.62, roofZ),
+          boatToWorld(-3.1,  hB * 0.68, roofZ)
+        ];
+        drawPoly3D([salonBase[0], salonBase[1], salonRoof[1], salonRoof[0]], "rgba(30, 41, 59, 0.85)", "#f59e0b", 1.2);
+        drawPoly3D([salonBase[2], salonBase[3], salonRoof[3], salonRoof[2]], "rgba(30, 41, 59, 0.85)", "#f59e0b", 1.2);
+        drawPoly3D([salonBase[1], salonBase[2], salonRoof[2], salonRoof[1]], "rgba(56, 189, 248, 0.35)", "#cbd5e1", 1.2);
+        drawPoly3D(salonRoof, "rgba(244, 244, 245, 0.92)", "#f59e0b", 1.6);
+      }
+
+      // Draw Swiveling Outboards / Outdrive / Fixed Shafts + Rudders at Transom
+      const steerRad = (simState.wheel_actual_deg * Math.PI) / 180;
+
+      function drawMotorOrRudderBox(cx, cy, cz, angleRad, lenM, widM, colorFill, colorStroke) {
+        const c = Math.cos(angleRad), s = Math.sin(angleRad);
+        const corners = [
+          { x: cx - lenM * c - widM * s, y: cy - lenM * s + widM * c, z: cz },
+          { x: cx + lenM * 0.3 * c - widM * s, y: cy + lenM * 0.3 * s + widM * c, z: cz },
+          { x: cx + lenM * 0.3 * c + widM * s, y: cy + lenM * 0.3 * s - widM * c, z: cz },
+          { x: cx - lenM * c + widM * s, y: cy - lenM * s - widM * c, z: cz }
+        ].map(p => boatToWorld(p.x, p.y, p.z));
+        drawPoly3D(corners, colorFill, colorStroke, 1.5);
+      }
+
+      if (pkg.propulsion.type === "single_sterndrive_duoprop") {
+        drawMotorOrRudderBox(-hL - 0.15, 0, 0.35, -steerRad, 0.85, 0.26, "#1e293b", "#38bdf8");
+      } else if (pkg.propulsion.type === "twin_steerable_outboard") {
+        // Twin Yamaha F425 XTO Cowlings swiveling with the wheel
+        drawMotorOrRudderBox(-hL - 0.2, -pkg.propulsion.lateral_y_m, 0.85, -steerRad, 0.95, 0.28, "#334155", "#f43f5e");
+        drawMotorOrRudderBox(-hL - 0.2,  pkg.propulsion.lateral_y_m, 0.85, -steerRad, 0.95, 0.28, "#334155", "#10b981");
+      } else {
+        // 52' Twin Fixed-Shaft Inboard: Fixed Prop Struts + Swiveling Aft Rudder Blades
+        drawMotorOrRudderBox(pkg.propulsion.rudder_x_m, -pkg.propulsion.lateral_y_m, 0.15, -steerRad, 0.75, 0.12, "#f59e0b", "#fef08a");
+        drawMotorOrRudderBox(pkg.propulsion.rudder_x_m,  pkg.propulsion.lateral_y_m, 0.15, -steerRad, 0.75, 0.12, "#f59e0b", "#fef08a");
+      }
+    }
+
+    // Draw "Making Invisible Forces Visible" Coaching Overlays in 3D Perspective
+    function drawCoachingOverlays3D(pkg) {
+      const W = canvas.width, H = canvas.height;
+
+      // 1. Ghost Track History Ribbon
+      if (overlays.ghostTrack && ghostTrack.length > 1) {
+        ctx.save();
+        ctx.strokeStyle = "rgba(192, 132, 252, 0.65)";
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([5, 4]);
+        ctx.beginPath();
+        let started = false;
+        for (let i = 0; i < ghostTrack.length; i++) {
+          const p = project3D(ghostTrack[i].x, ghostTrack[i].y, 0.08, W, H);
+          if (!p) continue;
+          if (!started) { ctx.moveTo(p.x, p.y); started = true; }
+          else ctx.lineTo(p.x, p.y);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // 2. Fairway-to-Slip Wind-Shadow Boundary Zone (CB-01)
+      if (overlays.windShadow && (simState.wind_base_kts + simState.gust_active_kts) > 0.5) {
+        const shadowY = SLIP_LENGTH_M + 1.2;
+        const leeZone = [
+          { x: -9.5, y: 0, z: 0.04 },
+          { x:  9.5, y: 0, z: 0.04 },
+          { x:  9.5, y: shadowY, z: 0.04 },
+          { x: -9.5, y: shadowY, z: 0.04 }
+        ];
+        drawPoly3D(leeZone, "rgba(14, 165, 233, 0.08)", "rgba(245, 158, 11, 0.55)", 1.5);
+        drawLine3D({ x: -12, y: shadowY, z: 0.08 }, { x: 12, y: shadowY, z: 0.08 }, "#f59e0b", 2.2, [8, 6]);
+
+        const lbl = project3D(5.8, shadowY, 0.3, W, H);
+        if (lbl) {
+          ctx.font = "bold 10.5px 'JetBrains Mono', monospace";
+          ctx.fillStyle = "#fbbf24";
+          ctx.textAlign = "center";
+          ctx.fillText(`▲ OPEN FAIRWAY WIND (${(simState.wind_base_kts + simState.gust_active_kts).toFixed(0)} kt) / ▼ 52' YACHT LEE SHADOW (${simState.stern_wind_kts.toFixed(0)} kt)`, lbl.x, lbl.y);
+        }
+
+        // Split Bow vs Stern Wind Force Arrows attached to the Boat
+        const bowW = boatToWorld(pkg.loa_m * 0.28, 0, 0.7);
+        const sternW = boatToWorld(-pkg.loa_m * 0.28, 0, 0.7);
+        const bowLen = (simState.bow_wind_kts / 16) * 3.8;
+        const sternLen = (simState.stern_wind_kts / 16) * 3.8;
+
+        drawLine3D({ x: bowW.x - bowLen, y: bowW.y, z: bowW.z }, bowW, "#f59e0b", 3.5);
+        drawLine3D({ x: sternW.x - sternLen, y: sternW.y, z: sternW.z }, sternW, "#38bdf8", 2.5);
+      }
+
+      // 3. Apparent Pivot-Point Marker (Migrates Forward in Headway, Aft in Sternway)
+      if (overlays.pivot) {
+        const pivWorld = boatToWorld(simState.pivot_x_m, 0, zPivotHeight(pkg));
+        const scr = project3D(pivWorld.x, pivWorld.y, pivWorld.z, W, H);
+        if (scr) {
+          ctx.fillStyle = "#10b981";
+          ctx.strokeStyle = "#052e16";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(scr.x, scr.y, 7, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.font = "bold 10px 'JetBrains Mono', monospace";
+          ctx.fillStyle = "#6ee7b7";
+          ctx.textAlign = "left";
+          ctx.fillText(`PIVOT (${simState.pivot_x_m >= 0 ? "+" : ""}${simState.pivot_x_m.toFixed(2)}m)`, scr.x + 10, scr.y + 3);
+        }
+      }
+
+      // 4. Heading (HDG) vs Course Over Ground (Track / Crab Angle) Vectors
+      if (overlays.vectors) {
+        const cgW = boatToWorld(0, 0, 0.4);
+        const hdgTip = boatToWorld(pkg.loa_m * 0.72, 0, 0.4);
+        drawLine3D(cgW, hdgTip, "#38bdf8", 2.5, [4, 4]);
+
+        const speedMps = Math.hypot(simState.u_mps, simState.v_mps);
+        if (speedMps > 0.05) {
+          const cosP = Math.cos(simState.psi_rad), sinP = Math.sin(simState.psi_rad);
+          const vx = simState.u_mps * sinP + simState.v_mps * cosP;
+          const vy = simState.u_mps * cosP - simState.v_mps * sinP;
+          const trackTip = {
+            x: cgW.x + vx * 5.5,
+            y: cgW.y + vy * 5.5,
+            z: 0.4
+          };
+          drawLine3D(cgW, trackTip, "#10b981", 3.5);
+        }
+      }
+    }
+
+    function zPivotHeight(pkg) {
+      return pkg.id === "cruiser-52-2023" ? 1.6 : 1.25;
+    }
+
+    // Master 60 FPS Render Loop
+    function renderScene3D() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      if (canvas.width !== Math.floor(rect.width) || canvas.height !== Math.floor(rect.height)) {
+        canvas.width = Math.floor(rect.width);
+        canvas.height = Math.floor(rect.height);
+      }
+      const W = canvas.width, H = canvas.height;
+      const pkg = BOAT_PACKAGES[activeBoatKey];
+
+      setupCamera3D(W, H, pkg);
+
+      // Background Water & Horizon Sky Gradient
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+      bgGrad.addColorStop(0, "#050b12");
+      bgGrad.addColorStop(0.28, "#081826");
+      bgGrad.addColorStop(1, "#06121c");
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, W, H);
+
+      // 1. Draw GPYC Marina Basin Water Micro-Ripple Grid (Critical for judging 0.5-1.5 kt motion!)
+      for (let gx = -24; gx <= 24; gx += 3) {
+        drawLine3D({ x: gx, y: 0, z: 0 }, { x: gx, y: 42, z: 0 }, "rgba(56, 189, 248, 0.07)", 1);
+      }
+      for (let gy = 0; gy <= 42; gy += 3) {
+        drawLine3D({ x: -24, y: gy, z: 0 }, { x: 24, y: gy, z: 0 }, "rgba(56, 189, 248, 0.07)", 1);
+      }
+
+      // 2. Target GPYC Slip Centerline Landing Guide
+      const halfSlipM = (pkg.slip_width_ft * 0.3048) / 2;
+      drawLine3D({ x: 0, y: 0.5, z: 0.03 }, { x: 0, y: SLIP_LENGTH_M + 14, z: 0.03 }, "rgba(16, 185, 129, 0.35)", 2, [6, 6]);
+
+      // 3. Main Concrete Dock Seawall (Y = -2.2m to Y = 0m) & Finger Piers
+      const dockZ = 1.05; // 3.5 ft above Lake St. Clair datum
+      drawPoly3D([
+        { x: -18, y: -2.5, z: dockZ },
+        { x:  18, y: -2.5, z: dockZ },
+        { x:  18, y:  0.0, z: dockZ },
+        { x: -18, y:  0.0, z: dockZ }
+      ], "#273240", "#475569", 1.5);
+      drawPoly3D([
+        { x: -18, y: 0.0, z: 0.0 },
+        { x:  18, y: 0.0, z: 0.0 },
+        { x:  18, y: 0.0, z: dockZ },
+        { x: -18, y: 0.0, z: dockZ }
+      ], "#1e293b", "#64748b", 1.5);
+
+      // Port & Starboard Finger Walkways
+      const fingerW = 0.75;
+      drawPoly3D([
+        { x: -halfSlipM - fingerW, y: 0, z: dockZ },
+        { x: -halfSlipM,           y: 0, z: dockZ },
+        { x: -halfSlipM,           y: SLIP_LENGTH_M, z: dockZ },
+        { x: -halfSlipM - fingerW, y: SLIP_LENGTH_M, z: dockZ }
+      ], "#334155", "#64748b", 1.2);
+      drawPoly3D([
+        { x: halfSlipM,           y: 0, z: dockZ },
+        { x: halfSlipM + fingerW, y: 0, z: dockZ },
+        { x: halfSlipM + fingerW, y: SLIP_LENGTH_M, z: dockZ },
+        { x: halfSlipM,           y: SLIP_LENGTH_M, z: dockZ }
+      ], "#334155", "#64748b", 1.2);
+
+      // 4. Neighboring 52-Ft Yacht to Windward (West -X)
+      drawNeighbor52Yacht3D(halfSlipM);
+
+      // 5. Coaching Overlays & Prop-Wash Plumes
+      drawCoachingOverlays3D(pkg);
+      drawPropWashAndThrusterPlumes3D(pkg);
+
+      // 6. Active 3D Boat Hull (or 1st-Person Cockpit Transom Framing)
+      drawActiveBoat3D(pkg);
+
+      // 7. All 4 GPYC Slip Timber Pilings with Real-Time Inch-Accurate Clearance Badges
+      const portBadgeCol = simState.port_clearance_in < 6 ? "#f43f5e" : (simState.port_clearance_in < 14 ? "#f59e0b" : "#34d399");
+      const stbdBadgeCol = simState.stbd_clearance_in < 6 ? "#f43f5e" : (simState.stbd_clearance_in < 14 ? "#f59e0b" : "#34d399");
+
+      // Inner Seawall Corner Pilings (Y = 0.8 m)
+      drawTimberPiling3D(-halfSlipM, 0.8, 0.18, 2.2, null, null);
+      drawTimberPiling3D( halfSlipM, 0.8, 0.18, 2.2, null, null);
+
+      // Outer Slip Entrance Pilings (Y = SLIP_LENGTH_M = 13.72 m / 45 ft)
+      drawTimberPiling3D(
+        -halfSlipM,
+        SLIP_LENGTH_M,
+        0.22,
+        2.5,
+        `PORT: ${Math.max(0, simState.port_clearance_in).toFixed(1)}"`,
+        portBadgeCol
+      );
+      drawTimberPiling3D(
+        halfSlipM,
+        SLIP_LENGTH_M,
+        0.22,
+        2.5,
+        `STBD: ${Math.max(0, simState.stbd_clearance_in).toFixed(1)}"`,
+        stbdBadgeCol
+      );
+    }
+
+    // =========================================================================
+    // LIVE HUD TELEMETRY UPDATER
+    // =========================================================================
+    let fpsFrames = 0;
+    let fpsLastTime = performance.now();
+    let measuredFps = 60;
+
+    function updateTelemetryHUD() {
+      const pkg = BOAT_PACKAGES[activeBoatKey];
+      const sogMps = Math.hypot(simState.u_mps, simState.v_mps);
+      const sogKts = sogMps * 1.94384;
+      const surgeFps = simState.u_mps * 3.28084;
+
+      document.getElementById("hudSog").textContent = `${sogKts.toFixed(2)} kt`;
+      document.getElementById("hudSurgeDir").textContent =
+        `${Math.abs(surgeFps).toFixed(1)} ft/s ${simState.u_mps >= -0.02 ? (simState.u_mps > 0.02 ? "Ahead" : "Dead") : "Astern"}`;
+
+      const hdgDeg = ((simState.psi_rad * 180) / Math.PI % 360 + 360) % 360;
+      const crabDeg = sogMps > 0.08 ? (Math.atan2(simState.v_mps, Math.abs(simState.u_mps) + 0.01) * 180) / Math.PI : 0;
+      document.getElementById("hudHdg").textContent = `${Math.round(hdgDeg).toString().padStart(3, "0")}°`;
+      document.getElementById("hudCrab").textContent = `Crab: ${Math.abs(crabDeg).toFixed(1)}°`;
+
+      const yawDegPs = (simState.r_radps * 180) / Math.PI;
+      document.getElementById("hudYawRate").textContent = `${yawDegPs >= 0 ? "+" : ""}${yawDegPs.toFixed(1)}°/s`;
+      document.getElementById("hudPivotPos").textContent = `Pivot: ${simState.pivot_x_m >= 0 ? "+" : ""}${simState.pivot_x_m.toFixed(2)}m`;
+
+      const pIn = Math.max(0, simState.port_clearance_in);
+      const sIn = Math.max(0, simState.stbd_clearance_in);
+      const pEl = document.getElementById("hudPortClearance");
+      const sEl = document.getElementById("hudStbdClearance");
+      pEl.textContent = `${pIn.toFixed(1)} in`;
+      sEl.textContent = `${sIn.toFixed(1)} in`;
+      pEl.className = `text-xs font-extrabold mono ${pIn < 6 ? "text-rose-400" : (pIn < 14 ? "text-amber-300" : "text-emerald-300")}`;
+      sEl.className = `text-xs font-extrabold mono ${sIn < 6 ? "text-rose-400" : (sIn < 14 ? "text-amber-300" : "text-emerald-300")}`;
+
+      document.getElementById("hudSternDist").textContent = `${simState.stern_seawall_ft.toFixed(1)} ft`;
+
+      const totalWind = simState.wind_base_kts + simState.gust_active_kts;
+      document.getElementById("hudWindBase").textContent = `${totalWind.toFixed(1)} kt @ ${simState.wind_from_deg.toFixed(0)}°`;
+      document.getElementById("hudBowWind").textContent = `${simState.bow_wind_kts.toFixed(1)} kt`;
+      document.getElementById("hudSternWind").textContent = `${simState.stern_wind_kts.toFixed(1)} kt`;
+
+      // Ring Buffer Fill Bar (15s = 750 slots)
+      const bufSec = Math.min(15.0, ringCount / 50);
+      document.getElementById("hudBufferFill").textContent = `${bufSec.toFixed(1)}s / 15.0s ready`;
+      document.getElementById("hudBufferBar").style.width = `${(bufSec / 15) * 100}%`;
+
+      // Bow Thruster AGM Duty Cycle & Speed Fade Meter
+      if (pkg.thruster.installed) {
+        const remPct = Math.max(0, 100 - (simState.thruster_continuous_s / pkg.thruster.cutout_s) * 100);
+        const bar = document.getElementById("barThrusterDuty");
+        bar.style.width = `${remPct}%`;
+        if (simState.thruster_cutout_cooldown_s > 0) {
+          document.getElementById("lblThrusterDutyState").textContent = `CUTOUT (${simState.thruster_cutout_cooldown_s.toFixed(0)}s)`;
+          bar.className = "h-full bg-rose-500 transition-all duration-100";
+        } else if (simState.thruster_continuous_s >= pkg.thruster.sag_onset_s) {
+          document.getElementById("lblThrusterDutyState").textContent = `AGM SAG (-22%)`;
+          bar.className = "h-full bg-amber-400 transition-all duration-100";
+        } else {
+          document.getElementById("lblThrusterDutyState").textContent = `AGM: ${Math.round(remPct)}%`;
+          bar.className = "h-full bg-emerald-400 transition-all duration-100";
+        }
+
+        const speedKts = sogKts;
+        let effPct = 100;
+        if (speedKts > pkg.thruster.full_eff_kts) {
+          const span = pkg.thruster.zero_eff_kts - pkg.thruster.full_eff_kts;
+          const f = Math.min(1, (speedKts - pkg.thruster.full_eff_kts) / span);
+          effPct = Math.round(Math.max(5, (1.0 - Math.pow(f, 1.35) * 0.88) * 100));
+        }
+        document.getElementById("lblThrusterEffectiveness").textContent = `Eff: ${effPct}%`;
+      }
+
+      // Joystick Saturation Indicator
+      if (pkg.joystick.enabled) {
+        const sat = simState.joy_saturation_pct;
+        const satEl = document.getElementById("lblJoySaturation");
+        if (sat >= 92) {
+          satEl.textContent = `${sat}% (SATURATED · USE THRUSTER!)`;
+          satEl.className = "text-rose-400 font-extrabold";
+        } else if (sat >= 65) {
+          satEl.textContent = `${sat}% (High RPM Surge)`;
+          satEl.className = "text-amber-300 font-bold";
+        } else {
+          satEl.textContent = `${sat}% (Nominal)`;
+          satEl.className = "text-emerald-300 font-bold";
+        }
+      }
+    }
+
+    // =========================================================================
+    // FIXED 50 HZ PHYSICS ACCUMULATOR + 60 FPS RENDER LOOP
+    // =========================================================================
+    const FIXED_DT = 0.02; // 50 Hz (20 ms)
+    let lastFrameTime = performance.now();
+    let physicsAccum = 0;
+
+    function mainLoop(now) {
+      const frameDt = Math.min(0.1, (now - lastFrameTime) / 1000);
+      lastFrameTime = now;
+
+      fpsFrames++;
+      if (now - fpsLastTime >= 500) {
+        measuredFps = Math.min(60, Math.round((fpsFrames * 1000) / (now - fpsLastTime)));
+        document.getElementById("hudFpsBadge").textContent = `${measuredFps} FPS · 50Hz`;
+        fpsFrames = 0;
+        fpsLastTime = now;
+      }
+
+      pollKeyboardAndGamepad(frameDt);
+
+      if (!simPaused) {
+        physicsAccum += frameDt;
+        while (physicsAccum >= FIXED_DT) {
+          stepPhysics50Hz(FIXED_DT);
+          physicsAccum -= FIXED_DT;
+        }
+      }
+
+      renderScene3D();
+      updateTelemetryHUD();
+      requestAnimationFrame(mainLoop);
+    }
+
+    // Boot Simulator
+    drawJoystickPad();
+    selectBoatPackage("pursuit-s358-2023");
+    requestAnimationFrame(mainLoop);
+  </script>
+</body>
+</html>

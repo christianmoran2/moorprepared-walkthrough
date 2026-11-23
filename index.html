@@ -1405,7 +1405,7 @@ body.pinning-slide-comment .slide.active {
         <div class="choice-group" id="s2BoatGroup">
           <button type="button" class="choice-btn" data-val="io25"><span>25' Single Sterndrive</span><small>5,800 lb · Prop-Walk</small></button>
           <button type="button" class="choice-btn active" data-val="s358"><span>2023 Pursuit S 358 (Ref)</span><small>15,600 lb · 11'4" Beam</small></button>
-          <button type="button" class="choice-btn" data-val="pilot38"><span>38' Pilothouse Cruiser</span><small>19,800 lb · High Windage</small></button>
+          <button type="button" class="choice-btn" data-val="pilot38"><span>52' Twin-Inboard Cabin Cruiser</span><small>48,500 lb · Fixed-Shaft</small></button>
         </div>
       </div>
       <div style="margin-top:9px;padding-top:8px;border-top:1px solid var(--border);font-size:11.2px;color:var(--muted);" id="s2BoatHint">
@@ -1652,7 +1652,7 @@ body.pinning-slide-comment .slide.active {
           <div class="kpi-row" style="grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;">
             <div class="kpi-box" style="padding:8px 10px;">
               <div class="k-lbl">Boat Loaded</div>
-              <div class="k-val" id="s3RxBoat" style="font-size:12.5px;color:var(--accent);">38' Pilothouse</div>
+              <div class="k-val" id="s3RxBoat" style="font-size:12.5px;color:var(--accent);">52' Twin-Inboard Cruiser</div>
             </div>
             <div class="kpi-box" style="padding:8px 10px;">
               <div class="k-lbl">Dock &amp; Position</div>
@@ -1858,7 +1858,7 @@ body.pinning-slide-comment .slide.active {
             <select id="s4BoatSel" style="width:100%;">
               <option value="s358" selected>2023 Pursuit S 358 (Ref)</option>
               <option value="io25">25' Single Sterndrive</option>
-              <option value="pilot38">38' Pilothouse Cruiser</option>
+              <option value="pilot38">52' Twin-Inboard Cabin Cruiser</option>
             </select>
           </div>
           <div>
@@ -1996,12 +1996,12 @@ body.pinning-slide-comment .slide.active {
     <button class="scen-tab active" data-test="approach">
       <span class="st-num">PROOF 01 · BEAM CROSSWIND</span>
       <span class="st-title">14 kt Slip Approach (Lined Up)</span>
-      <span class="st-sub">S 358 docks SAFE; 38' bounces off piling</span>
+      <span class="st-sub">S 358 docks SAFE; 52' bounces off piling</span>
     </button>
     <button class="scen-tab" data-test="coast">
       <span class="st-num">PROOF 02 · MASS &amp; STOPPING</span>
       <span class="st-title">Stopping Inside the 37 ft Slip</span>
-      <span class="st-sub">25' stops SAFE; 19,800 lb 38' hits bulkhead</span>
+      <span class="st-sub">25' stops SAFE; 48,500 lb 52' hits bulkhead</span>
     </button>
     <button class="scen-tab" data-test="mistake">
       <span class="st-num">PROOF 03 · WIND AMPLIFICATION</span>
@@ -2021,7 +2021,7 @@ body.pinning-slide-comment .slide.active {
       <div class="story-point" id="s3StoryCard">
         <h3 id="s3StoryTitle">Proof 01: Same Captain Inputs, Opposite Slip Outcome</h3>
         <p id="s3StoryBody">
-          Both vessels start properly lined up at <strong>x = 0 ft 0 in</strong> just outside the 14 ft 0 in finger slip. The captain applies the exact coordinated crab inputs calibrated for <strong>Boat A (Pursuit S 358, sea-slate blue)</strong>—bringing it straight down the centerline with <strong>1 ft 3 in of clearance</strong> on both sides (<strong>SAFE</strong>). Given those exact same inputs, <strong>Boat B (38' Cruiser, warm brass)</strong> catches more lateral windage and physically bounces off the leeward piling.
+          Both vessels start properly lined up at <strong>x = 0 ft 0 in</strong> just outside the 14 ft 0 in finger slip. The captain applies the exact coordinated crab inputs calibrated for <strong>Boat A (Pursuit S 358, sea-slate blue)</strong>—bringing it straight down the centerline with <strong>1 ft 3 in of clearance</strong> on both sides (<strong>SAFE</strong>). Given those exact same inputs, <strong>Boat B (52' Twin-Inboard Cabin Cruiser, warm brass)</strong> catches more lateral windage and physically bounces off the leeward piling.
         </p>
       </div>
 
@@ -2034,24 +2034,24 @@ body.pinning-slide-comment .slide.active {
           <div>
             <label style="font-size:11px;color:var(--accent);font-weight:700;display:block;margin-bottom:3px;">Boat A (Sea-Slate Reference)</label>
             <select id="s3BoatA" style="width:100%;">
-              <option value="s358" selected>2023 Pursuit S 358 (15,600 lb)</option>
-              <option value="io25">25' Single Sterndrive (5,800 lb)</option>
-              <option value="pilot38">38' Pilothouse Cruiser (19,800 lb)</option>
+              <option value="s358" selected>2023 Pursuit S 358 (18,800 lb)</option>
+              <option value="io25">25' Single Sterndrive (5,850 lb)</option>
+              <option value="pilot38">52' Twin-Inboard Cabin Cruiser (48,500 lb)</option>
             </select>
           </div>
           <div>
             <label style="font-size:11px;color:var(--amber);font-weight:700;display:block;margin-bottom:3px;">Boat B (Brass Comparison)</label>
             <select id="s3BoatB" style="width:100%;">
-              <option value="pilot38" selected>38' Pilothouse Cruiser (19,800 lb)</option>
-              <option value="io25">25' Single Sterndrive (5,800 lb)</option>
-              <option value="s358">2023 Pursuit S 358 (15,600 lb)</option>
+              <option value="pilot38" selected>52' Twin-Inboard Cabin Cruiser (48,500 lb)</option>
+              <option value="io25">25' Single Sterndrive (5,850 lb)</option>
+              <option value="s358">2023 Pursuit S 358 (18,800 lb)</option>
             </select>
           </div>
         </div>
 
         <table class="clean-table">
           <thead>
-            <tr><th>Vessel Parameter</th><th style="color:var(--accent);" id="s3ThA">Boat A (Pursuit)</th><th style="color:var(--amber);" id="s3ThB">Boat B (38')</th></tr>
+            <tr><th>Vessel Parameter</th><th style="color:var(--accent);" id="s3ThA">Boat A (Pursuit)</th><th style="color:var(--amber);" id="s3ThB">Boat B (52')</th></tr>
           </thead>
           <tbody id="s3SpecTable"></tbody>
         </table>
@@ -2838,13 +2838,13 @@ const PROFILES = {
   },
   pilot38: {
     key: 'pilot38',
-    name: '38 ft enclosed-pilothouse cruiser',
-    short: '38 ft pilothouse cruiser',
-    kind: 'Class archetype (illustrative, unvalidated)',
+    name: '52 ft Twin-Inboard Cabin Cruiser (48,500 lb)',
+    short: '52 ft Twin-Inboard Cruiser',
+    kind: 'Class archetype (Twin 725 HP straight-shaft diesels + prop-wash rudders)',
     L: 11.58, B: 3.66, T: 0.72, m: 9800, Alat: 30.5, Alon: 10.6, ceFrac: 0.18,
     engines: [{ y: -1.20, Tmax: 6200 }, { y: 1.20, Tmax: 6200 }], idle: 0.09, steer: 'rudder', lock: 0.45,
     thruster: 850, joy: null,
-    facts: 'Heavy displacement, tall forward pilothouse windage (328 sq ft side area), twin fixed-shaft inboards with rudders (minimal rudder steerage in reverse), bow thruster, no joystick.'
+    facts: 'Heavy 48,500 lb displacement, 453 sq ft cabin windage, twin fixed-shaft inboard diesels with prop-wash rudders (minimal rudder steerage in reverse), 24V bow thruster, no joystick.'
   }
 };
 
@@ -3603,11 +3603,11 @@ function simulateCQTest(testKey, keyA, keyB, windKn, curKn) {
   PROFILES.s358.beamStr = "11 ft 4 in";
   PROFILES.s358.propType = "Twin Yamaha F425 XTO + Helm Master EX";
   PROFILES.s358.thrusterSpec = "3.0 HP (2.2 kW) · Group 31 AGM";
-  PROFILES.pilot38.shortName = "38' Pilothouse Cruiser";
-  PROFILES.pilot38.dispLb = 19800;
-  PROFILES.pilot38.beamStr = "12 ft 0 in";
-  PROFILES.pilot38.propType = "Twin Fixed-Shaft Inboards";
-  PROFILES.pilot38.thrusterSpec = "5.5 HP (4.1 kW) DC Thruster (No Joystick)";
+  PROFILES.pilot38.shortName = "52' Twin-Inboard Cabin Cruiser";
+  PROFILES.pilot38.dispLb = 48500;
+  PROFILES.pilot38.beamStr = "15 ft 6 in (18' Slip)";
+  PROFILES.pilot38.propType = "Twin Fixed-Shaft Inboard Diesels + Rudders";
+  PROFILES.pilot38.thrusterSpec = "8.7 HP (6.5 kW) 24V Thruster (No Joystick)";
 
   const SLIDE_IDS = ['slide1', 'slide2', 'slide3', 'slide4', 'slide5', 'slide6', 'slide7', 'slide8'];
   let currentSlide = 'slide1';
@@ -4485,7 +4485,7 @@ function simulateCQTest(testKey, keyA, keyB, windKn, curKn) {
         stroke: PALETTE.brass,
         fill: PALETTE.brassFill,
         ghost: PALETTE.brassGhost,
-        hint: '<strong style="color:#ead3ae;">Active Hull Trait:</strong> Tall enclosed cabin catches <strong>1.6× lateral wind load</strong>; fixed shafts + tight <strong>1 ft 0 in</strong> slip margin.'
+        hint: '<strong style="color:#ead3ae;">Active Hull Trait:</strong> 48,500 lb displacement + 453 ft² cabin windage; twin fixed-shaft diesels + prop-wash rudders (steer in reverse with split throttles + thruster!).'
       }
     }[s2State.boat];
 
@@ -4955,8 +4955,8 @@ function simulateCQTest(testKey, keyA, keyB, windKn, curKn) {
       body: 'Both vessels start properly lined up at <strong>x = 0 ft 0 in</strong> just outside the 14 ft 0 in finger slip. The captain applies the exact coordinated crab inputs calibrated for <strong>Boat A (Pursuit S 358, sea-slate blue)</strong>—bringing it straight down the centerline with <strong>1 ft 3 in of clearance</strong> on both sides (<strong>SAFE</strong>). Given those exact same inputs, <strong>Boat B (warm brass)</strong> catches different windage/prop forces and <strong>bounces off the leeward piling</strong>.'
     },
     coast: {
-      title: 'Proof 02: Stopping Inside the 37 ft Slip (19,800 lb vs 5,800 lb Momentum)',
-      body: 'Both vessels cross the slip entrance pilings on the exact centerline (<strong>x = 0 ft 0 in</strong>) at <strong>2.8 kt</strong>, coast for 4.2 seconds, and apply the exact same gentle reverse check. <strong>Boat A (sea-slate blue)</strong> stops cleanly inside the slip (<strong>SAFE</strong>), whereas the heavier <strong>38\' Pilothouse (19,800 lb, warm brass)</strong> carries 3.4× the momentum and <strong>surges into the concrete main dock bulkhead</strong>.'
+      title: 'Proof 02: Stopping Inside the 37 ft Slip (48,500 lb vs 5,850 lb Momentum)',
+      body: 'Both vessels cross the slip entrance pilings on the exact centerline (<strong>x = 0 ft 0 in</strong>) at <strong>2.8 kt</strong>, coast for 4.2 seconds, and apply the exact same gentle reverse check. <strong>Boat A (sea-slate blue)</strong> stops cleanly inside the slip (<strong>SAFE</strong>), whereas the heavier <strong>52\' Twin-Inboard Cabin Cruiser (48,500 lb, warm brass)</strong> carries 8.3× the momentum and <strong>surges into the concrete main dock bulkhead</strong>.'
     },
     mistake: {
       title: 'Proof 03: High-Wind Power & 2.0-Second Mistake Amplification (18 kt vs 3 kt Calm)',
@@ -6017,7 +6017,7 @@ function simulateCQTest(testKey, keyA, keyB, windKn, curKn) {
       step2Body: 'Practice Port-Side-To (blind-side from a starboard helm) and Starboard-Side-To approaches in 15–18 kt gusts + 0.5 kt current—testing exactly when to check way.',
       step3Hdr: '3. Fore/Aft Clearance Audit & Crew Cues (Min 35–45)',
       step3Body: 'Review overhead clearance traces to the moored boats ahead and astern, locking in sightline landmarks and calm line-handling callouts with your crew.',
-      rxBoat: '38\' Pilothouse Cruiser',
+      rxBoat: '52\' Twin-Inboard Cabin Cruiser',
       rxDock: '48\' Fuel Pocket · Port-To',
       rxEnv: '18 kt Gusts + 0.5 kt Set',
       recMode: 'digital',
