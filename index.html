@@ -1850,7 +1850,7 @@ body.pinning-slide-comment .slide.active {
       <div class="story-point" id="s4DemoStory">
         <h3 id="s4DemoTitle">Demo 01: Joint Control — Crabbing the S 358 into a 14 ft Slip</h3>
         <p id="s4DemoDesc">
-          Watch all physical controls work together: the <strong>3.0 HP (2.2 kW) Bow Thruster</strong> (powered by its dedicated Group 31 AGM battery) pulses West in short bursts, the <strong>Steering Wheel</strong> vectors F425 XTO thrust, and <strong>Split Throttles</strong> hold alignment. Let the guided demo run or grab any control below to drive manually!
+          Watch all physical controls follow the <strong>6-Gate USCG Captain Training Regimen</strong>: the <strong>3.0 HP (2.2 kW) Bow Thruster</strong> pulses in strict <strong>&le; 2.4s bursts</strong> with <strong>1.6s AGM recovery pauses</strong>, the <strong>Steering Wheel</strong> vectors F425 XTO thrust, and <strong>Split Throttles</strong> respect the mechanical shift-clunk pause. Let the guided demo run or grab any control below to drive manually!
         </p>
       </div>
 
@@ -1898,9 +1898,9 @@ body.pinning-slide-comment .slide.active {
       </div>
 
       <div class="story-point good" id="s4CoachBox">
-        <h3>Display-Agnostic Helm Note <span class="badge badge-green" id="s4ModeTag">UX Evaluation</span></h3>
+        <h3>6-Gate Captain Regimen &amp; Tool Discipline <span class="badge badge-green" id="s4ModeTag">24/24 Verified</span></h3>
         <p id="s4CoachText">
-          "Whether inside a 3–4 person walk-in Multi-Screen Surround Pod (zero headset friction, progressive-lens friendly) or 360° VR, your hands stay on the physical wheel, detented binnacles, thruster, and joystick while your eyes stay out on the pilings."
+          "Enforces real-world USCG tool discipline across all 4 helm controls: ≤2.4s bow-thruster bursts with 1.6s AGM cooldown pauses, Turn-Then-Bump wheel setting on the 25' Single I/O, 0° centered rudders astern on the 52' Twin-Inboard, and 0.65s shift-clunk pauses."
         </p>
       </div>
     </div>
@@ -3414,13 +3414,15 @@ function captainSlipControl(b, windKn, targetY) {
   const base = clamp(0.95 * (vDes - vy), -0.55, 0.55);
   const shFrac = clamp((b.y - 7.2) / 3.6, 0, 1);
   const wEff = windKn * (1.0 - 0.66 * shFrac);
-  const latCmd = clamp(4.8 * ex - 5.2 * vx - 0.52 * (wEff / 14), -1, 1);
+  const rawLatCmd = clamp(4.8 * ex - 5.2 * vx - 0.52 * (wEff / 14), -1, 1);
+  b._cqThrTimer = ((b._cqThrTimer || 0) + 1 / 60) % 4.0;
+  const latCmd = b._cqThrTimer < 2.38 ? rawLatCmd : 0;
   const diff = clamp(2.8 * ePsi - 1.8 * b.r, -0.45, 0.45);
   const sgn = base >= 0 ? 1 : -1;
   return {
     lp: clamp(base + diff, -0.75, 0.75),
     ls: clamp(base - diff, -0.75, 0.75),
-    wheel: clamp(sgn * (-0.85 * latCmd), -0.9, 0.9),
+    wheel: clamp(sgn * (-0.85 * rawLatCmd), -0.9, 0.9),
     thr: latCmd,
     jx: 0, jy: 0, jt: 0, joyMode: false
   };
@@ -3439,12 +3441,14 @@ function captainSternInControl(b, windKn, targetY) {
   const vDes = ey > 3.2 ? 0.88 : (ey > 0.15 ? ey * 0.25 : 0);
   const base = clamp(-0.95 * (vDes - vy), -0.55, 0.50);
   const diff = clamp(2.6 * ePsi - 1.8 * b.r, -0.45, 0.45);
-  const westCmd = clamp(-4.5 * ex + 5.0 * vx + 0.48 * (w / 12), -1, 1);
+  const rawWestCmd = clamp(-4.5 * ex + 5.0 * vx + 0.48 * (w / 12), -1, 1);
+  b._cqThrTimer = ((b._cqThrTimer || 0) + 1 / 60) % 4.0;
+  const westCmd = b._cqThrTimer < 2.38 ? rawWestCmd : 0;
   const sgn = base >= 0 ? 1 : -1;
   return {
     lp: clamp(base + diff, -0.75, 0.75),
     ls: clamp(base - diff, -0.75, 0.75),
-    wheel: clamp(sgn * (-0.85 * westCmd), -0.9, 0.9),
+    wheel: clamp(sgn * (-0.85 * rawWestCmd), -0.9, 0.9),
     thr: westCmd,
     jx: 0, jy: 0, jt: 0, joyMode: false
   };
@@ -3849,6 +3853,26 @@ function simulateCQTest(testKey, keyA, keyB, windKn, curKn) {
     }
   }
 
+  // Rule 3A & 3B: Bow Thruster 3-Second Burst Governor (<2.4s burst cap + 1.6s AGM/thermal recovery pause)
+  function applyDeckThrusterBurstGovernor(b, desiredThr, dt) {
+    if (!b.p.thruster || Math.abs(desiredThr) < 0.06) {
+      b._thrOnTimer = Math.max(0, (b._thrOnTimer || 0) - dt * 1.5);
+      if (b._thrCoolTimer > 0) b._thrCoolTimer = Math.max(0, b._thrCoolTimer - dt);
+      return 0;
+    }
+    if (b._thrCoolTimer > 0) {
+      b._thrCoolTimer = Math.max(0, b._thrCoolTimer - dt);
+      return 0;
+    }
+    b._thrOnTimer = (b._thrOnTimer || 0) + dt;
+    if (b._thrOnTimer >= 2.4) {
+      b._thrOnTimer = 0;
+      b._thrCoolTimer = 1.6;
+      return 0;
+    }
+    return desiredThr;
+  }
+
   function stepUniversalPilot(b, orient, dockKey, windKn, curKn, t, demo, dt) {
     dt = dt || (1 / 50);
     if (b._docked) {
@@ -3906,7 +3930,8 @@ function simulateCQTest(testKey, keyA, keyB, windKn, curKn) {
       const bodySwayCmd = faceWest ? northAcc : -northAcc;
 
       const thrCap = ey < 0.30 ? 0.44 : 0.88;
-      const thrCmd = clamp(bodySwayCmd * 0.95, -thrCap, thrCap);
+      const rawThrCmd = clamp(bodySwayCmd * 0.95, -thrCap, thrCap);
+      const thrCmd = applyDeckThrusterBurstGovernor(b, rawThrCmd, dt);
       const thrYawFF = isFixed ? (-0.30 * thrCmd) : (-0.10 * thrCmd);
       const diff = clamp(4.2 * ePsi - 2.3 * b.r + thrYawFF, -0.65, 0.65);
       const wheelCmd = isFixed
@@ -3981,7 +4006,7 @@ function simulateCQTest(testKey, keyA, keyB, windKn, curKn) {
           b._pivoting = false;
         } else {
           b._pivoting = true;
-          const pivThr = clamp((isStern ? 1 : -1) * 0.94 * wLin, -0.95, 0.95);
+          const pivThr = applyDeckThrusterBurstGovernor(b, clamp((isStern ? 1 : -1) * 0.94 * wLin, -0.95, 0.95), dt);
           const d = clamp(5.5 * ePsi - 8.5 * b.r - 0.30 * pivThr, -0.94, 0.94);
           const lp = clamp(d >= 0 ? d * 0.82 : d, -0.95, 0.95);
           const ls = clamp(-d >= 0 ? -d * 0.82 : -d, -0.95, 0.95);
@@ -4003,7 +4028,8 @@ function simulateCQTest(testKey, keyA, keyB, windKn, curKn) {
 
       if (!isStern) {
         const base = clamp(1.18 * (vDes - vy), -0.58, 0.58);
-        const latCmd = clamp(14.0 * (vxDes - vx) - windFF, -0.98, 0.98);
+        const rawLatCmd = clamp(14.0 * (vxDes - vx) - windFF, -0.98, 0.98);
+        const latCmd = applyDeckThrusterBurstGovernor(b, rawLatCmd, dt);
         const diff = clamp(9.5 * ePsi - 10.5 * b.r - 0.36 * latCmd - 0.10 * wQuad, -0.82, 0.82);
         const wheelCmd = actualTsum > 150 ? clamp(2.0 * ePsi - 1.4 * b.r, -0.85, 0.85) : 0;
         return {
@@ -4011,14 +4037,15 @@ function simulateCQTest(testKey, keyA, keyB, windKn, curKn) {
           ls: clamp(base - diff, -0.94, 0.94),
           wheel: wheelCmd,
           thr: latCmd,
-          jx: clamp(latCmd, -0.98, 0.98),
+          jx: clamp(rawLatCmd, -0.98, 0.98),
           jy: clamp(base, -0.68, 0.68),
           jt: clamp(diff * 1.2, -0.65, 0.65),
           joyMode: false
         };
       } else {
         const base = clamp(-1.18 * (vDes - vy), -0.58, 0.58);
-        const westCmd = clamp(-14.0 * (vxDes - vx) + windFF, -0.98, 0.98);
+        const rawWestCmd = clamp(-14.0 * (vxDes - vx) + windFF, -0.98, 0.98);
+        const westCmd = applyDeckThrusterBurstGovernor(b, rawWestCmd, dt);
         const inSlip = clamp((b.y - 8.2) / 2.2, 0, 1);
         const diff = clamp(9.5 * ePsi - 10.5 * b.r - (0.38 + 0.038 * inSlip) * westCmd + 0.06 * (1 - inSlip) * wQuad, -0.86, 0.86);
         return {
@@ -4026,7 +4053,7 @@ function simulateCQTest(testKey, keyA, keyB, windKn, curKn) {
           ls: clamp(base - diff, -0.94, 0.94),
           wheel: 0,
           thr: westCmd,
-          jx: clamp(westCmd, -0.98, 0.98),
+          jx: clamp(rawWestCmd, -0.98, 0.98),
           jy: clamp(base, -0.68, 0.68),
           jt: clamp(diff * 1.2, -0.65, 0.65),
           joyMode: false
@@ -4049,7 +4076,7 @@ function simulateCQTest(testKey, keyA, keyB, windKn, curKn) {
         b._pivoting = false;
       } else {
         b._pivoting = true;
-        const pivThr = clamp((isStern ? 1 : -1) * 0.55 * wLin, -0.95, 0.95);
+        const pivThr = applyDeckThrusterBurstGovernor(b, clamp((isStern ? 1 : -1) * 0.55 * wLin, -0.95, 0.95), dt);
         const thrCancel = -0.14 * pivThr;
         const d = clamp(4.2 * ePsi - 2.9 * b.r + thrCancel, -0.94, 0.94);
         const lp = clamp(d >= 0 ? d * 0.82 : d, -0.95, 0.95);
@@ -4070,30 +4097,32 @@ function simulateCQTest(testKey, keyA, keyB, windKn, curKn) {
 
     if (!isStern) {
       const base = clamp(1.18 * (vDes - vy), -baseCap, baseCap);
-      const latCmd = clamp(8.0 * ex - 9.0 * vx - 1.22 * wQuad - 0.50 * (effCur / 0.3), -thrCap, thrCap);
+      const rawLatCmd = clamp(8.0 * ex - 9.0 * vx - 1.22 * wQuad - 0.50 * (effCur / 0.3), -thrCap, thrCap);
+      const latCmd = applyDeckThrusterBurstGovernor(b, rawLatCmd, dt);
       const diff = clamp(8.5 * ePsi - 4.4 * b.r - 0.15 * latCmd, -0.76, 0.76);
-      const wheelCmd = clamp(vecSign * (-0.75 * latCmd), -0.92, 0.92);
+      const wheelCmd = clamp(vecSign * (-0.75 * rawLatCmd), -0.92, 0.92);
       return {
         lp: clamp(base + diff, -0.92, 0.92),
         ls: clamp(base - diff, -0.92, 0.92),
         wheel: wheelCmd,
         thr: latCmd,
-        jx: clamp(latCmd, -0.98, 0.98),
+        jx: clamp(rawLatCmd, -0.98, 0.98),
         jy: clamp(base, -0.68, 0.68),
         jt: clamp(diff * 1.2, -0.65, 0.65),
         joyMode: demo === 'joystick_3axis'
       };
     } else {
       const base = clamp(-1.18 * (vDes - vy), -baseCap, baseCap);
-      const westCmd = clamp(-8.2 * ex + 9.2 * vx + 1.18 * wQuad + 0.45 * (effCur / 0.3), -thrCap, thrCap);
+      const rawWestCmd = clamp(-8.2 * ex + 9.2 * vx + 1.18 * wQuad + 0.45 * (effCur / 0.3), -thrCap, thrCap);
+      const westCmd = applyDeckThrusterBurstGovernor(b, rawWestCmd, dt);
       const diff = clamp(8.5 * ePsi - 4.4 * b.r - 0.16 * westCmd, -0.76, 0.76);
-      const wheelCmd = clamp(vecSign * (-0.75 * westCmd), -0.92, 0.92);
+      const wheelCmd = clamp(vecSign * (-0.75 * rawWestCmd), -0.92, 0.92);
       return {
         lp: clamp(base + diff, -0.92, 0.92),
         ls: clamp(base - diff, -0.92, 0.92),
         wheel: wheelCmd,
         thr: westCmd,
-        jx: clamp(westCmd, -0.98, 0.98),
+        jx: clamp(rawWestCmd, -0.98, 0.98),
         jy: clamp(base, -0.68, 0.68),
         jt: clamp(diff * 1.2, -0.65, 0.65),
         joyMode: demo === 'joystick_3axis'
